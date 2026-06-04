@@ -402,14 +402,14 @@ export default function App() {
           <div className="p-7">
             <div className="rounded-[2rem] border border-[#403729] bg-[#211b15] p-5">
               <div className="flex items-center gap-4">
-                <div className="grid h-14 w-14 place-items-center rounded-2xl bg-[#d6a84f] text-2xl font-black text-[#17130f] shadow-lg shadow-black/20">
-                  ৳
-                </div>
+                <BrandLogo compact />
                 <div>
-                  <h1 className="text-xl font-black tracking-tight">
-                    LedgerDesk
+                  <h1 className="text-lg font-black leading-tight tracking-tight">
+                    Accounts and Ledger System
                   </h1>
-                  <p className="text-sm text-[#b8ab99]">Saudi ledger control</p>
+                  <p className="text-sm text-[#b8ab99]">
+                    Daily balance control
+                  </p>
                 </div>
               </div>
 
@@ -613,6 +613,7 @@ export default function App() {
 function LoginScreen({ onLogin }: { onLogin: (user: SessionUser) => void }) {
   const [email, setEmail] = useState("admin@ledger.local");
   const [password, setPassword] = useState("admin123");
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
 
   const submitLogin = (event: React.FormEvent<HTMLFormElement>) => {
@@ -644,18 +645,15 @@ function LoginScreen({ onLogin }: { onLogin: (user: SessionUser) => void }) {
 
           <div className="relative z-10 flex h-full min-h-[520px] flex-col justify-between">
             <div>
-              <div className="grid h-16 w-16 place-items-center rounded-3xl bg-[#d6a84f] text-3xl font-black text-[#17130f]">
-                ৳
-              </div>
-
+              <BrandLogo />
               <p className="mt-8 text-xs font-black uppercase tracking-[0.28em] text-[#d6a84f]">
-                LedgerDesk
+                ACCOUNTS & LEDGER SYSTEM
               </p>
               <h1 className="mt-3 max-w-xl text-4xl font-black leading-tight tracking-tight sm:text-5xl">
-                Daily accounting control for Saudi ledger business.
+                Daily accounting control for business ledger records.
               </h1>
               <p className="mt-5 max-w-lg text-sm leading-7 text-[#cdbfae]">
-                Manage party balances, Saudi/SR calculations, commission profit,
+                Manage party balances, SR calculations, commission profit,
                 locked daily records, and personal balance from one clean
                 dashboard.
               </p>
@@ -688,13 +686,86 @@ function LoginScreen({ onLogin }: { onLogin: (user: SessionUser) => void }) {
                 placeholder="admin@ledger.local"
               />
 
-              <FormField
-                label="Password"
-                type="password"
-                value={password}
-                onChange={setPassword}
-                placeholder="admin123"
-              />
+              <div className="grid gap-2 text-sm font-black text-[#3a3127]">
+                <label htmlFor="password">Password</label>
+
+                <div className="flex items-center rounded-2xl border border-[#e1d2bd] bg-[#fffaf0] px-4 py-3 transition focus-within:border-[#9c6f22]">
+                  <input
+                    id="password"
+                    type={showPassword ? "text" : "password"}
+                    value={password}
+                    onChange={(event) => setPassword(event.target.value)}
+                    placeholder="admin123"
+                    className="min-w-0 flex-1 bg-transparent text-sm font-semibold outline-none placeholder:text-[#a89c8a]"
+                  />
+
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((previous) => !previous)}
+                    className="ml-3 grid h-9 w-9 place-items-center rounded-xl text-[#756b5c] transition hover:bg-[#efe3cf] hover:text-[#17130f]"
+                    aria-label={
+                      showPassword ? "Hide password" : "Show password"
+                    }
+                  >
+                    {showPassword ? (
+                      <svg
+                        viewBox="0 0 24 24"
+                        className="h-5 w-5"
+                        fill="none"
+                        xmlns="http://www.w3.org/2000/svg"
+                      >
+                        <path
+                          d="M3 3L21 21"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                        />
+                        <path
+                          d="M10.58 10.58A2 2 0 0 0 13.42 13.42"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                        />
+                        <path
+                          d="M9.88 5.18A9.6 9.6 0 0 1 12 5C17.5 5 21 12 21 12A15.2 15.2 0 0 1 19.27 14.61"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                        <path
+                          d="M6.61 6.61C4.18 8.25 3 12 3 12C3 12 6.5 19 12 19A9.7 9.7 0 0 0 16.08 18.09"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                      </svg>
+                    ) : (
+                      <svg
+                        viewBox="0 0 24 24"
+                        className="h-5 w-5"
+                        fill="none"
+                        xmlns="http://www.w3.org/2000/svg"
+                      >
+                        <path
+                          d="M3 12C3 12 6.5 5 12 5C17.5 5 21 12 21 12C21 12 17.5 19 12 19C6.5 19 3 12 3 12Z"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinejoin="round"
+                        />
+                        <circle
+                          cx="12"
+                          cy="12"
+                          r="3"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                        />
+                      </svg>
+                    )}
+                  </button>
+                </div>
+              </div>
 
               {error && (
                 <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-bold text-rose-700">
@@ -1410,6 +1481,60 @@ function LoginStat({ label, value }: { label: string; value: string }) {
         {label}
       </p>
       <p className="mt-2 font-black text-[#fff7e8]">{value}</p>
+    </div>
+  );
+}
+
+function BrandLogo({ compact = false }: { compact?: boolean }) {
+  return (
+    <div
+      className={`relative grid place-items-center ${
+        compact ? "h-14 w-14 rounded-2xl" : "h-20 w-20 rounded-[1.7rem]"
+      } bg-[#d6a84f] text-[#17130f] shadow-lg shadow-black/20`}
+      aria-label="Accounts and Ledger System logo"
+    >
+      <svg
+        viewBox="0 0 64 64"
+        className={compact ? "h-9 w-9" : "h-12 w-12"}
+        fill="none"
+        xmlns="http://www.w3.org/2000/svg"
+      >
+        <rect
+          x="13"
+          y="10"
+          width="38"
+          height="44"
+          rx="7"
+          stroke="currentColor"
+          strokeWidth="4"
+        />
+        <path
+          d="M23 22H41"
+          stroke="currentColor"
+          strokeWidth="4"
+          strokeLinecap="round"
+        />
+        <path
+          d="M23 33H41"
+          stroke="currentColor"
+          strokeWidth="4"
+          strokeLinecap="round"
+        />
+        <path
+          d="M23 44H33"
+          stroke="currentColor"
+          strokeWidth="4"
+          strokeLinecap="round"
+        />
+        <circle cx="46" cy="46" r="8" fill="#17130f" />
+        <path
+          d="M42.5 46.2L45 48.7L50.2 43.3"
+          stroke="#d6a84f"
+          strokeWidth="3"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </svg>
     </div>
   );
 }
