@@ -33,6 +33,21 @@ type PersonalEntry = {
   note: string;
 };
 
+type LedgerRow = Party & {
+  calc: ReturnType<typeof calculateLedger>;
+};
+
+type DashboardTotals = {
+  rows: LedgerRow[];
+  partySubtotal: number;
+  personalBalance: number;
+  todayCredit: number;
+  todayDebit: number;
+  todayProfit: number;
+  totalBalance: number;
+  lockedCount: number;
+};
+
 const today = new Date().toISOString().slice(0, 10);
 
 const initialParties: Party[] = [
@@ -527,7 +542,7 @@ function Dashboard({
   totals,
   setView,
 }: {
-  totals: ReturnType<typeof useDashboardTotals>;
+  totals: DashboardTotals;
   setView: React.Dispatch<React.SetStateAction<View>>;
 }) {
   const maxPartyBalance = Math.max(
@@ -935,11 +950,7 @@ function PersonalBalance({
   );
 }
 
-function Reports({
-  totals,
-}: {
-  totals: ReturnType<typeof useDashboardTotals>;
-}) {
+function Reports({ totals }: { totals: DashboardTotals }) {
   return (
     <div className="grid gap-6 xl:grid-cols-2">
       <ReportCard title="Daily Summary">
@@ -1020,19 +1031,6 @@ function Reports({
       </ReportCard>
     </div>
   );
-}
-
-function useDashboardTotals() {
-  return {
-    rows: [] as Array<Party & { calc: ReturnType<typeof calculateLedger> }>,
-    partySubtotal: 0,
-    personalBalance: 0,
-    todayCredit: 0,
-    todayDebit: 0,
-    todayProfit: 0,
-    totalBalance: 0,
-    lockedCount: 0,
-  };
 }
 
 function RoleButton({
