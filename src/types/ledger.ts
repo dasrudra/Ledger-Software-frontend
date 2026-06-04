@@ -1,6 +1,6 @@
 export type Role = "admin" | "employee";
 
-export type View = "dashboard" | "ledger" | "personal" | "reports";
+export type View = "dashboard" | "parties" | "ledger" | "personal" | "reports";
 
 export type SessionUser = {
   name: string;

@@ -9,6 +9,7 @@ import { DashboardPage } from "./features/dashboard/DashboardPage";
 import { LedgerPage } from "./features/ledger/LedgerPage";
 import { PersonalPage } from "./features/personal/PersonalPage";
 import { ReportsPage } from "./features/reports/ReportsPage";
+import { PartyManagementPage } from "./features/parties/PartyManagementPage";
 import type {
   DashboardTotals,
   LedgerNumericField,
@@ -158,6 +159,38 @@ export default function App() {
     setShowAddParty(false);
   };
 
+  const updatePartyInfo = (partyId: number, values: NewPartyForm) => {
+    if (!isAdmin || !values.name.trim()) return;
+
+    setParties((previous) =>
+      previous.map((party) =>
+        party.id === partyId
+          ? {
+              ...party,
+              name: values.name.trim(),
+              phone: values.phone.trim(),
+              openingBalance: safeNumber(values.openingBalance),
+            }
+          : party,
+      ),
+    );
+  };
+
+  const togglePartyStatus = (partyId: number) => {
+    if (!isAdmin) return;
+
+    setParties((previous) =>
+      previous.map((party) =>
+        party.id === partyId
+          ? {
+              ...party,
+              active: !party.active,
+            }
+          : party,
+      ),
+    );
+  };
+
   const addPersonalEntry = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!isAdmin || !newPersonal.title.trim()) return;
@@ -217,21 +250,27 @@ export default function App() {
                 label="Control Dashboard"
               />
               <NavButton
+                active={view === "parties"}
+                onClick={() => setView("parties")}
+                code="02"
+                label="Party Management"
+              />
+              <NavButton
                 active={view === "ledger"}
                 onClick={() => setView("ledger")}
-                code="02"
+                code="03"
                 label="Daily Ledger Desk"
               />
               <NavButton
                 active={view === "personal"}
                 onClick={() => setView("personal")}
-                code="03"
+                code="04"
                 label="Personal Balance"
               />
               <NavButton
                 active={view === "reports"}
                 onClick={() => setView("reports")}
-                code="04"
+                code="05"
                 label="Reports Archive"
               />
             </nav>
@@ -305,6 +344,16 @@ export default function App() {
           <div className="p-4 sm:p-6 lg:p-10">
             {view === "dashboard" && (
               <DashboardPage totals={totals} setView={setView} />
+            )}
+
+            {view === "parties" && (
+              <PartyManagementPage
+                parties={parties}
+                isAdmin={isAdmin}
+                onOpenAddParty={() => setShowAddParty(true)}
+                onUpdateParty={updatePartyInfo}
+                onTogglePartyStatus={togglePartyStatus}
+              />
             )}
 
             {view === "ledger" && (
@@ -398,6 +447,7 @@ export default function App() {
 function pageTitle(view: View) {
   const titles: Record<View, string> = {
     dashboard: "Control Dashboard",
+    parties: "Party Management",
     ledger: "Daily Ledger Desk",
     personal: "Personal Balance",
     reports: "Reports Archive",
