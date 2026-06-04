@@ -1,7 +1,14 @@
-import React, { useMemo, useState } from "react";
+import { useMemo, useState } from "react";
+import type { ReactNode } from "react";
 
 type Role = "admin" | "employee";
 type View = "dashboard" | "ledger" | "personal" | "reports";
+
+type SessionUser = {
+  name: string;
+  email: string;
+  role: Role;
+};
 
 type Ledger = {
   date: string;
@@ -33,8 +40,15 @@ type PersonalEntry = {
   note: string;
 };
 
+type LedgerCalculation = {
+  closingBalance: number;
+  srProfit: number;
+  commissionProfit: number;
+  totalProfit: number;
+};
+
 type LedgerRow = Party & {
-  calc: ReturnType<typeof calculateLedger>;
+  calc: LedgerCalculation;
 };
 
 type DashboardTotals = {
@@ -49,6 +63,21 @@ type DashboardTotals = {
 };
 
 const today = new Date().toISOString().slice(0, 10);
+
+const demoUsers: Array<SessionUser & { password: string }> = [
+  {
+    name: "Business Owner",
+    email: "admin@ledger.local",
+    password: "admin123",
+    role: "admin",
+  },
+  {
+    name: "Ledger Employee",
+    email: "employee@ledger.local",
+    password: "employee123",
+    role: "employee",
+  },
+];
 
 const initialParties: Party[] = [
   {
@@ -146,12 +175,11 @@ const safeNumber = (value: unknown) => {
   return Number.isFinite(parsed) ? parsed : 0;
 };
 
-function calculateLedger(party: Party) {
+function calculateLedger(party: Party): LedgerCalculation {
   const ledger = party.ledger;
 
-  // Client-confirmed business rule used in this demo:
+  // Client-confirmed rule for demo:
   // Credit = addition, Debit = subtraction.
-  // Before production, finalize this rule in backend with the client.
   const closingBalance =
     safeNumber(party.openingBalance) +
     safeNumber(ledger.credit) -
@@ -160,39 +188,56 @@ function calculateLedger(party: Party) {
   const srProfit =
     (safeNumber(ledger.marketRate) - safeNumber(ledger.givenRate)) *
     safeNumber(ledger.srAmount);
+
   const commissionProfit =
     safeNumber(ledger.debit) * (safeNumber(ledger.commissionRate) / 100);
+
   const totalProfit =
     srProfit +
     commissionProfit +
     safeNumber(ledger.rdCharge) +
     safeNumber(ledger.others);
 
-  return { closingBalance, srProfit, commissionProfit, totalProfit };
-}
-
-function balanceStatus(value: number) {
-  if (value > 0)
-    return {
-      label: "Receivable",
-      description: "Party balance positive",
-      tone: "text-emerald-600 bg-emerald-50 ring-emerald-100",
-    };
-  if (value < 0)
-    return {
-      label: "Advance",
-      description: "Business owes party",
-      tone: "text-rose-600 bg-rose-50 ring-rose-100",
-    };
   return {
-    label: "Settled",
-    description: "No balance remaining",
-    tone: "text-slate-600 bg-slate-100 ring-slate-200",
+    closingBalance,
+    srProfit,
+    commissionProfit,
+    totalProfit,
   };
 }
 
-export default function LedgerFrontendDemo() {
-  const [role, setRole] = useState<Role>("admin");
+function getBalanceStatus(value: number) {
+  if (value > 0) {
+    return {
+      label: "Receivable",
+      description: "Party owes business",
+      badge: "bg-emerald-100 text-emerald-700 border-emerald-200",
+      text: "text-emerald-700",
+      bar: "bg-emerald-500",
+    };
+  }
+
+  if (value < 0) {
+    return {
+      label: "Advance",
+      description: "Business owes party",
+      badge: "bg-rose-100 text-rose-700 border-rose-200",
+      text: "text-rose-700",
+      bar: "bg-rose-500",
+    };
+  }
+
+  return {
+    label: "Settled",
+    description: "No due balance",
+    badge: "bg-slate-100 text-slate-700 border-slate-200",
+    text: "text-slate-700",
+    bar: "bg-slate-400",
+  };
+}
+
+export default function App() {
+  const [sessionUser, setSessionUser] = useState<SessionUser | null>(null);
   const [view, setView] = useState<View>("dashboard");
   const [parties, setParties] = useState<Party[]>(initialParties);
   const [personalEntries, setPersonalEntries] = useState<PersonalEntry[]>(
@@ -210,34 +255,41 @@ export default function LedgerFrontendDemo() {
     note: "",
   });
 
-  const isAdmin = role === "admin";
+  const isAdmin = sessionUser?.role === "admin";
 
-  const totals = useMemo(() => {
-    const rows = parties.map((party) => ({
-      ...party,
-      calc: calculateLedger(party),
-    }));
+  const totals = useMemo<DashboardTotals>(() => {
+    const rows = parties
+      .filter((party) => party.active)
+      .map((party) => ({
+        ...party,
+        calc: calculateLedger(party),
+      }));
+
     const partySubtotal = rows.reduce(
       (sum, party) => sum + party.calc.closingBalance,
       0,
     );
+
     const personalBalance = personalEntries.reduce(
       (sum, entry) => sum + safeNumber(entry.amount),
       0,
     );
+
     const todayCredit = rows.reduce(
       (sum, party) => sum + safeNumber(party.ledger.credit),
       0,
     );
+
     const todayDebit = rows.reduce(
       (sum, party) => sum + safeNumber(party.ledger.debit),
       0,
     );
+
     const todayProfit = rows.reduce(
-      (sum, party) => sum + party.calc.totalProfit,
+      (sum, party) => sum + safeNumber(party.calc.totalProfit),
       0,
     );
-    const totalBalance = partySubtotal + personalBalance;
+
     const lockedCount = rows.filter((party) => party.ledger.locked).length;
 
     return {
@@ -247,7 +299,7 @@ export default function LedgerFrontendDemo() {
       todayCredit,
       todayDebit,
       todayProfit,
-      totalBalance,
+      totalBalance: partySubtotal + personalBalance,
       lockedCount,
     };
   }, [parties, personalEntries]);
@@ -257,13 +309,18 @@ export default function LedgerFrontendDemo() {
     field: keyof Ledger,
     value: string,
   ) => {
+    if (!isAdmin) return;
+
     setParties((previous) =>
       previous.map((party) => {
-        if (party.id !== partyId || party.ledger.locked || !isAdmin)
-          return party;
+        if (party.id !== partyId || party.ledger.locked) return party;
+
         return {
           ...party,
-          ledger: { ...party.ledger, [field]: safeNumber(value) },
+          ledger: {
+            ...party.ledger,
+            [field]: safeNumber(value),
+          },
         };
       }),
     );
@@ -271,10 +328,17 @@ export default function LedgerFrontendDemo() {
 
   const closeDay = (partyId: number) => {
     if (!isAdmin) return;
+
     setParties((previous) =>
       previous.map((party) =>
         party.id === partyId
-          ? { ...party, ledger: { ...party.ledger, locked: true } }
+          ? {
+              ...party,
+              ledger: {
+                ...party.ledger,
+                locked: true,
+              },
+            }
           : party,
       ),
     );
@@ -323,42 +387,40 @@ export default function LedgerFrontendDemo() {
       },
       ...previous,
     ]);
+
     setNewPersonal({ title: "", amount: "", note: "" });
   };
 
-  return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,#e0f2fe_0,#f8fafc_34%,#f1f5f9_100%)] text-slate-950">
-      <div className="flex min-h-screen">
-        <aside className="hidden w-80 shrink-0 border-r border-white/10 bg-slate-950 text-white shadow-2xl lg:flex lg:flex-col">
-          <div className="p-7">
-            <div className="flex items-center gap-4">
-              <div className="grid h-14 w-14 place-items-center rounded-2xl bg-gradient-to-br from-blue-500 via-cyan-500 to-emerald-500 text-2xl font-black shadow-lg shadow-cyan-500/20">
-                ৳
-              </div>
-              <div>
-                <h1 className="text-xl font-black tracking-tight">
-                  Ledger System
-                </h1>
-                <p className="text-sm text-slate-400">
-                  Saudi accounting ledger
-                </p>
-              </div>
-            </div>
+  if (!sessionUser) {
+    return <LoginScreen onLogin={setSessionUser} />;
+  }
 
-            <div className="mt-8 rounded-2xl bg-white/8 p-1.5 ring-1 ring-white/10">
-              <div className="grid grid-cols-2 gap-1">
-                <RoleButton
-                  active={role === "admin"}
-                  onClick={() => setRole("admin")}
-                >
-                  Admin
-                </RoleButton>
-                <RoleButton
-                  active={role === "employee"}
-                  onClick={() => setRole("employee")}
-                >
-                  Employee
-                </RoleButton>
+  return (
+    <main className="min-h-screen bg-[#f4efe6] text-[#17130f]">
+      <div className="flex min-h-screen">
+        <aside className="hidden w-[310px] shrink-0 border-r border-[#2b241b] bg-[#17130f] text-[#f8efe0] xl:flex xl:flex-col">
+          <div className="p-7">
+            <div className="rounded-[2rem] border border-[#403729] bg-[#211b15] p-5">
+              <div className="flex items-center gap-4">
+                <div className="grid h-14 w-14 place-items-center rounded-2xl bg-[#d6a84f] text-2xl font-black text-[#17130f] shadow-lg shadow-black/20">
+                  ৳
+                </div>
+                <div>
+                  <h1 className="text-xl font-black tracking-tight">
+                    LedgerDesk
+                  </h1>
+                  <p className="text-sm text-[#b8ab99]">Saudi ledger control</p>
+                </div>
+              </div>
+
+              <div className="mt-5 rounded-2xl border border-[#403729] bg-[#17130f] p-4">
+                <p className="text-xs uppercase tracking-[0.22em] text-[#b8ab99]">
+                  Signed in
+                </p>
+                <p className="mt-2 font-black">{sessionUser.name}</p>
+                <p className="mt-1 text-sm capitalize text-[#d6a84f]">
+                  {sessionUser.role}
+                </p>
               </div>
             </div>
 
@@ -366,89 +428,91 @@ export default function LedgerFrontendDemo() {
               <NavButton
                 active={view === "dashboard"}
                 onClick={() => setView("dashboard")}
-                icon="📊"
-                label="Dashboard"
+                code="01"
+                label="Control Dashboard"
               />
               <NavButton
                 active={view === "ledger"}
                 onClick={() => setView("ledger")}
-                icon="🧾"
-                label="Daily Ledger"
+                code="02"
+                label="Daily Ledger Desk"
               />
               <NavButton
                 active={view === "personal"}
                 onClick={() => setView("personal")}
-                icon="💼"
+                code="03"
                 label="Personal Balance"
               />
               <NavButton
                 active={view === "reports"}
                 onClick={() => setView("reports")}
-                icon="📁"
-                label="Reports"
+                code="04"
+                label="Reports Archive"
               />
             </nav>
           </div>
 
           <div className="mt-auto p-7">
-            <div className="rounded-3xl border border-white/10 bg-white/[0.06] p-5 shadow-xl">
-              <div className="mb-3 flex items-center justify-between">
-                <span className="text-sm font-bold text-white">
-                  {isAdmin ? "Admin mode" : "Employee mode"}
-                </span>
-                <span className="rounded-full bg-emerald-400/15 px-2.5 py-1 text-xs font-bold text-emerald-300 ring-1 ring-emerald-400/20">
-                  Active
-                </span>
-              </div>
-              <p className="text-sm leading-6 text-slate-400">
-                {isAdmin
-                  ? "Create parties, enter daily ledger values, and close records."
-                  : "View-only access. Ledger modification is blocked."}
+            <div className="rounded-[2rem] border border-[#403729] bg-[#211b15] p-5">
+              <p className="text-sm font-black text-[#f8efe0]">
+                {isAdmin ? "Admin privileges" : "Employee view"}
               </p>
+              <p className="mt-2 text-sm leading-6 text-[#b8ab99]">
+                {isAdmin
+                  ? "You can create parties, update ledgers, and close daily records."
+                  : "You can view summaries and reports only. Editing is locked."}
+              </p>
+              <button
+                onClick={() => {
+                  setSessionUser(null);
+                  setView("dashboard");
+                }}
+                className="mt-5 w-full rounded-2xl border border-[#403729] px-4 py-3 text-sm font-black text-[#f8efe0] transition hover:bg-[#2b241b]"
+              >
+                Logout
+              </button>
             </div>
           </div>
         </aside>
 
         <section className="flex min-w-0 flex-1 flex-col">
-          <header className="sticky top-0 z-20 border-b border-white/60 bg-white/70 px-4 py-4 backdrop-blur-xl sm:px-6 lg:px-10">
-            <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+          <header className="sticky top-0 z-30 border-b border-[#ded3c1] bg-[#f4efe6]/85 px-4 py-4 backdrop-blur-xl sm:px-6 lg:px-10">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
               <div>
-                <p className="text-xs font-bold uppercase tracking-[0.22em] text-blue-600">
-                  {today}
+                <p className="text-xs font-black uppercase tracking-[0.22em] text-[#9c6f22]">
+                  Business Date · {today}
                 </p>
-                <div className="mt-1 flex items-center gap-3">
-                  <h2 className="text-3xl font-black tracking-tight text-slate-950 sm:text-4xl">
-                    {pageTitle(view)}
-                  </h2>
-                  <span className="hidden rounded-full bg-slate-950 px-3 py-1 text-xs font-bold text-white sm:inline-flex">
-                    {role.toUpperCase()}
-                  </span>
-                </div>
+                <h2 className="mt-1 text-3xl font-black tracking-tight sm:text-4xl">
+                  {pageTitle(view)}
+                </h2>
               </div>
 
               <div className="flex flex-wrap gap-3">
                 <button
-                  onClick={() =>
-                    setRole(role === "admin" ? "employee" : "admin")
-                  }
-                  className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-black text-slate-700 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md lg:hidden"
-                >
-                  Switch: {role}
-                </button>
-                <button
                   onClick={() => setView("reports")}
-                  className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-black text-slate-700 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+                  className="rounded-2xl border border-[#d8c9b4] bg-[#fffaf0] px-4 py-3 text-sm font-black text-[#17130f] shadow-sm transition hover:-translate-y-0.5"
                 >
-                  View Reports
+                  Open Reports
                 </button>
+
                 {isAdmin && (
                   <button
                     onClick={() => setShowAddParty(true)}
-                    className="rounded-2xl bg-gradient-to-r from-blue-600 to-cyan-500 px-5 py-3 text-sm font-black text-white shadow-lg shadow-blue-500/25 transition hover:-translate-y-0.5 hover:shadow-xl"
+                    className="rounded-2xl bg-[#17130f] px-5 py-3 text-sm font-black text-[#fff7e8] shadow-xl shadow-black/15 transition hover:-translate-y-0.5"
                   >
-                    + Add Party
+                    + New Party
                   </button>
                 )}
+
+                <button
+                  onClick={() => {
+                    setSessionUser(null);
+                    setView("dashboard");
+                  }}
+                  className="rounded-2xl border border-[#d8c9b4] bg-[#fffaf0] px-4 py-3 text-sm font-black text-[#17130f] xl:hidden"
+                >
+                  Logout
+                </button>
               </div>
             </div>
           </header>
@@ -457,16 +521,18 @@ export default function LedgerFrontendDemo() {
             {view === "dashboard" && (
               <Dashboard totals={totals} setView={setView} />
             )}
+
             {view === "ledger" && (
-              <LedgerView
+              <LedgerPage
                 rows={totals.rows}
                 isAdmin={isAdmin}
                 updateLedger={updateLedger}
                 closeDay={closeDay}
               />
             )}
+
             {view === "personal" && (
-              <PersonalBalance
+              <PersonalPage
                 isAdmin={isAdmin}
                 balance={totals.personalBalance}
                 entries={personalEntries}
@@ -475,47 +541,52 @@ export default function LedgerFrontendDemo() {
                 addPersonalEntry={addPersonalEntry}
               />
             )}
-            {view === "reports" && <Reports totals={totals} />}
+
+            {view === "reports" && <ReportsPage totals={totals} />}
           </div>
         </section>
       </div>
 
       {showAddParty && (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/60 p-4 backdrop-blur-sm">
+        <div className="fixed inset-0 z-50 grid place-items-center bg-[#17130f]/70 p-4 backdrop-blur-sm">
           <form
             onSubmit={addParty}
-            className="w-full max-w-lg rounded-[2rem] border border-white/70 bg-white p-6 shadow-2xl"
+            className="w-full max-w-lg rounded-[2rem] border border-[#e5d8c4] bg-[#fffaf0] p-6 shadow-2xl"
           >
-            <div className="mb-6 flex items-center justify-between gap-4">
+            <div className="mb-6 flex items-start justify-between gap-4">
               <div>
-                <h3 className="text-2xl font-black">Add New Party</h3>
-                <p className="mt-1 text-sm text-slate-500">
-                  Opening balance is manually entered for a new party.
+                <p className="text-xs font-black uppercase tracking-[0.2em] text-[#9c6f22]">
+                  Party management
+                </p>
+                <h3 className="mt-1 text-2xl font-black">Add New Party</h3>
+                <p className="mt-2 text-sm text-[#756b5c]">
+                  Opening balance is manually entered for new customers.
                 </p>
               </div>
+
               <button
                 type="button"
                 onClick={() => setShowAddParty(false)}
-                className="grid h-10 w-10 place-items-center rounded-2xl bg-slate-100 text-xl font-black text-slate-600 hover:bg-slate-200"
+                className="grid h-10 w-10 place-items-center rounded-2xl bg-[#efe3cf] text-xl font-black"
               >
                 ×
               </button>
             </div>
 
             <div className="grid gap-4">
-              <ModalField
+              <FormField
                 label="Party Name"
                 value={newParty.name}
                 onChange={(value) => setNewParty({ ...newParty, name: value })}
                 placeholder="Example: Party D"
               />
-              <ModalField
+              <FormField
                 label="Phone / Note"
                 value={newParty.phone}
                 onChange={(value) => setNewParty({ ...newParty, phone: value })}
                 placeholder="Optional"
               />
-              <ModalField
+              <FormField
                 label="Manual Opening Balance"
                 type="number"
                 value={newParty.openingBalance}
@@ -524,9 +595,10 @@ export default function LedgerFrontendDemo() {
                 }
                 placeholder="0"
               />
+
               <button
-                className="mt-2 rounded-2xl bg-slate-950 px-5 py-4 text-sm font-black text-white shadow-xl shadow-slate-900/20 transition hover:-translate-y-0.5"
                 type="submit"
+                className="rounded-2xl bg-[#17130f] px-5 py-4 text-sm font-black text-[#fff7e8]"
               >
                 Save Party
               </button>
@@ -538,6 +610,122 @@ export default function LedgerFrontendDemo() {
   );
 }
 
+function LoginScreen({ onLogin }: { onLogin: (user: SessionUser) => void }) {
+  const [email, setEmail] = useState("admin@ledger.local");
+  const [password, setPassword] = useState("admin123");
+  const [error, setError] = useState("");
+
+  const submitLogin = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    const matchedUser = demoUsers.find(
+      (user) => user.email === email.trim() && user.password === password,
+    );
+
+    if (!matchedUser) {
+      setError("Invalid email or password.");
+      return;
+    }
+
+    setError("");
+    onLogin({
+      name: matchedUser.name,
+      email: matchedUser.email,
+      role: matchedUser.role,
+    });
+  };
+
+  return (
+    <main className="grid min-h-screen place-items-center bg-[#17130f] p-4 text-[#17130f]">
+      <div className="grid w-full max-w-6xl overflow-hidden rounded-[2.5rem] border border-[#403729] bg-[#fffaf0] shadow-2xl lg:grid-cols-[1.05fr_0.95fr]">
+        <section className="relative overflow-hidden bg-[#211b15] p-8 text-[#fff7e8] sm:p-10">
+          <div className="absolute -right-24 -top-24 h-72 w-72 rounded-full bg-[#d6a84f]/20 blur-3xl" />
+          <div className="absolute -bottom-28 -left-24 h-80 w-80 rounded-full bg-emerald-500/10 blur-3xl" />
+
+          <div className="relative z-10 flex h-full min-h-[520px] flex-col justify-between">
+            <div>
+              <div className="grid h-16 w-16 place-items-center rounded-3xl bg-[#d6a84f] text-3xl font-black text-[#17130f]">
+                ৳
+              </div>
+
+              <p className="mt-8 text-xs font-black uppercase tracking-[0.28em] text-[#d6a84f]">
+                LedgerDesk
+              </p>
+              <h1 className="mt-3 max-w-xl text-4xl font-black leading-tight tracking-tight sm:text-5xl">
+                Daily accounting control for Saudi ledger business.
+              </h1>
+              <p className="mt-5 max-w-lg text-sm leading-7 text-[#cdbfae]">
+                Manage party balances, Saudi/SR calculations, commission profit,
+                locked daily records, and personal balance from one clean
+                dashboard.
+              </p>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-3">
+              <LoginStat label="Parties" value="70–100" />
+              <LoginStat label="Access" value="Role based" />
+              <LoginStat label="Records" value="Locked" />
+            </div>
+          </div>
+        </section>
+
+        <section className="p-8 sm:p-10">
+          <div className="mx-auto max-w-md">
+            <p className="text-xs font-black uppercase tracking-[0.22em] text-[#9c6f22]">
+              Secure access
+            </p>
+            <h2 className="mt-3 text-3xl font-black">Sign in</h2>
+            <p className="mt-2 text-sm leading-6 text-[#756b5c]">
+              Use admin or employee demo credentials. Backend authentication
+              will replace this mock login later.
+            </p>
+
+            <form onSubmit={submitLogin} className="mt-8 grid gap-5">
+              <FormField
+                label="Email"
+                value={email}
+                onChange={setEmail}
+                placeholder="admin@ledger.local"
+              />
+
+              <FormField
+                label="Password"
+                type="password"
+                value={password}
+                onChange={setPassword}
+                placeholder="admin123"
+              />
+
+              {error && (
+                <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-bold text-rose-700">
+                  {error}
+                </div>
+              )}
+
+              <button
+                type="submit"
+                className="rounded-2xl bg-[#17130f] px-5 py-4 text-sm font-black text-[#fff7e8] shadow-xl shadow-black/15 transition hover:-translate-y-0.5"
+              >
+                Login to LedgerDesk
+              </button>
+            </form>
+
+            <div className="mt-8 grid gap-3 rounded-3xl border border-[#e5d8c4] bg-[#f7ecd9] p-5 text-sm">
+              <p className="font-black">Demo credentials</p>
+              <p>
+                <strong>Admin:</strong> admin@ledger.local / admin123
+              </p>
+              <p>
+                <strong>Employee:</strong> employee@ledger.local / employee123
+              </p>
+            </div>
+          </div>
+        </section>
+      </div>
+    </main>
+  );
+}
+
 function Dashboard({
   totals,
   setView,
@@ -545,7 +733,7 @@ function Dashboard({
   totals: DashboardTotals;
   setView: React.Dispatch<React.SetStateAction<View>>;
 }) {
-  const maxPartyBalance = Math.max(
+  const maxBalance = Math.max(
     ...totals.rows.map((party) => Math.abs(party.calc.closingBalance)),
     1,
   );
@@ -554,45 +742,47 @@ function Dashboard({
     <div className="grid gap-6">
       <section className="grid gap-4 xl:grid-cols-4">
         <MetricCard
-          title="Total Balance"
+          label="Total Balance"
           value={formatBDT(totals.totalBalance)}
-          hint="Party subtotal + personal"
-          tone="blue"
-          onClick={() => setView("reports")}
+          helper="Party subtotal + personal"
+          variant="dark"
         />
         <MetricCard
-          title="Party Subtotal"
+          label="Party Subtotal"
           value={formatBDT(totals.partySubtotal)}
-          hint={`${totals.rows.length} active parties`}
-          tone="slate"
+          helper={`${totals.rows.length} active customers`}
+          variant="paper"
         />
         <MetricCard
-          title="Personal Balance"
+          label="Personal Balance"
           value={formatBDT(totals.personalBalance)}
-          hint="Owner personal tracker"
-          tone="green"
-          onClick={() => setView("personal")}
+          helper="Owner personal tracker"
+          variant="green"
         />
         <MetricCard
-          title="Today's Profit"
+          label="Today's Profit"
           value={formatBDT(totals.todayProfit)}
-          hint="SR + commission + charges"
-          tone="orange"
+          helper="SR + commission + charges"
+          variant="gold"
         />
       </section>
 
-      <section className="grid gap-6 xl:grid-cols-[1.4fr_0.8fr]">
-        <div className="rounded-[2rem] border border-white bg-white/90 p-6 shadow-xl shadow-slate-200/80 backdrop-blur">
+      <section className="grid gap-6 xl:grid-cols-[1.35fr_0.65fr]">
+        <div className="rounded-[2rem] border border-[#e1d2bd] bg-[#fffaf0] p-6 shadow-xl shadow-[#d8c9b4]/40">
           <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div>
-              <h3 className="text-xl font-black">Party Balance Breakdown</h3>
-              <p className="mt-1 text-sm text-slate-500">
-                Live closing balance preview based on today’s draft values.
+              <p className="text-xs font-black uppercase tracking-[0.2em] text-[#9c6f22]">
+                Party control
+              </p>
+              <h3 className="mt-1 text-2xl font-black">Balance Breakdown</h3>
+              <p className="mt-2 text-sm text-[#756b5c]">
+                Live closing balance preview from today's ledger values.
               </p>
             </div>
+
             <button
               onClick={() => setView("ledger")}
-              className="rounded-2xl bg-blue-50 px-4 py-3 text-sm font-black text-blue-700 ring-1 ring-blue-100 transition hover:bg-blue-100"
+              className="rounded-2xl bg-[#17130f] px-4 py-3 text-sm font-black text-[#fff7e8]"
             >
               Open Ledger
             </button>
@@ -600,48 +790,43 @@ function Dashboard({
 
           <div className="grid gap-4">
             {totals.rows.map((party) => {
-              const status = balanceStatus(party.calc.closingBalance);
-              const percent = Math.min(
+              const status = getBalanceStatus(party.calc.closingBalance);
+              const width = Math.min(
                 100,
                 Math.round(
-                  (Math.abs(party.calc.closingBalance) / maxPartyBalance) * 100,
+                  (Math.abs(party.calc.closingBalance) / maxBalance) * 100,
                 ),
               );
+
               return (
                 <div
                   key={party.id}
-                  className="rounded-3xl border border-slate-100 bg-slate-50/80 p-4 transition hover:-translate-y-0.5 hover:bg-white hover:shadow-lg"
+                  className="rounded-3xl border border-[#eadcc8] bg-[#f8efdf] p-4 transition hover:-translate-y-0.5 hover:bg-white"
                 >
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <div>
-                      <div className="flex items-center gap-2">
-                        <h4 className="font-black text-slate-900">
-                          {party.name}
-                        </h4>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h4 className="text-lg font-black">{party.name}</h4>
                         <span
-                          className={`rounded-full px-2.5 py-1 text-xs font-black ring-1 ${status.tone}`}
+                          className={`rounded-full border px-3 py-1 text-xs font-black ${status.badge}`}
                         >
                           {status.label}
                         </span>
                       </div>
-                      <p className="mt-1 text-sm text-slate-500">
+                      <p className="mt-1 text-sm text-[#756b5c]">
                         {status.description}
                       </p>
                     </div>
-                    <strong
-                      className={
-                        party.calc.closingBalance >= 0
-                          ? "text-lg text-emerald-600"
-                          : "text-lg text-rose-600"
-                      }
-                    >
+
+                    <strong className={`text-lg ${status.text}`}>
                       {formatBDT(party.calc.closingBalance)}
                     </strong>
                   </div>
-                  <div className="mt-4 h-2 overflow-hidden rounded-full bg-slate-200">
+
+                  <div className="mt-4 h-2 overflow-hidden rounded-full bg-[#e8dac7]">
                     <div
-                      className={`h-full rounded-full ${party.calc.closingBalance >= 0 ? "bg-emerald-500" : "bg-rose-500"}`}
-                      style={{ width: `${percent}%` }}
+                      className={`h-full rounded-full ${status.bar}`}
+                      style={{ width: `${width}%` }}
                     />
                   </div>
                 </div>
@@ -651,9 +836,13 @@ function Dashboard({
         </div>
 
         <div className="grid gap-6">
-          <div className="rounded-[2rem] border border-slate-900 bg-slate-950 p-6 text-white shadow-xl shadow-slate-300/80">
-            <p className="text-sm font-bold text-slate-400">Daily Summary</p>
-            <div className="mt-5 grid gap-4">
+          <div className="rounded-[2rem] bg-[#17130f] p-6 text-[#fff7e8] shadow-xl shadow-black/10">
+            <p className="text-xs font-black uppercase tracking-[0.2em] text-[#d6a84f]">
+              Today
+            </p>
+            <h3 className="mt-2 text-2xl font-black">Daily Summary</h3>
+
+            <div className="mt-6 grid gap-4">
               <SummaryLine
                 label="Credit received"
                 value={formatBDT(totals.todayCredit)}
@@ -674,14 +863,14 @@ function Dashboard({
             </div>
           </div>
 
-          <div className="rounded-[2rem] border border-white bg-white/90 p-6 shadow-xl shadow-slate-200/80">
-            <p className="text-sm font-bold uppercase tracking-[0.16em] text-slate-400">
-              Audit posture
+          <div className="rounded-[2rem] border border-[#e1d2bd] bg-[#fffaf0] p-6">
+            <p className="text-xs font-black uppercase tracking-[0.2em] text-[#9c6f22]">
+              Audit rule
             </p>
-            <h3 className="mt-3 text-2xl font-black">Immutable after close</h3>
-            <p className="mt-3 text-sm leading-6 text-slate-500">
-              Saved records become locked. Any correction should be handled
-              through a later adjustment entry.
+            <h3 className="mt-2 text-2xl font-black">Locked after close</h3>
+            <p className="mt-3 text-sm leading-6 text-[#756b5c]">
+              Once a daily ledger is closed, the frontend blocks editing. Later
+              the backend will enforce the same rule permanently.
             </p>
           </div>
         </div>
@@ -690,13 +879,13 @@ function Dashboard({
   );
 }
 
-function LedgerView({
+function LedgerPage({
   rows,
   isAdmin,
   updateLedger,
   closeDay,
 }: {
-  rows: Array<Party & { calc: ReturnType<typeof calculateLedger> }>;
+  rows: LedgerRow[];
   isAdmin: boolean;
   updateLedger: (partyId: number, field: keyof Ledger, value: string) => void;
   closeDay: (partyId: number) => void;
@@ -705,23 +894,26 @@ function LedgerView({
     <div className="grid gap-6 xl:grid-cols-2">
       {rows.map((party) => {
         const disabled = !isAdmin || party.ledger.locked;
-        const status = balanceStatus(party.calc.closingBalance);
+        const status = getBalanceStatus(party.calc.closingBalance);
+
         return (
           <section
             key={party.id}
-            className="overflow-hidden rounded-[2rem] border border-white bg-white/90 shadow-xl shadow-slate-200/80 backdrop-blur"
+            className="overflow-hidden rounded-[2rem] border border-[#e1d2bd] bg-[#fffaf0] shadow-xl shadow-[#d8c9b4]/40"
           >
-            <div className="border-b border-slate-100 bg-gradient-to-r from-slate-950 to-slate-800 p-6 text-white">
+            <div className="border-b border-[#e1d2bd] bg-[#17130f] p-6 text-[#fff7e8]">
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <h3 className="text-2xl font-black">{party.name}</h3>
-                  <p className="mt-1 text-sm text-slate-300">
+                  <p className="text-xs font-black uppercase tracking-[0.2em] text-[#d6a84f]">
+                    Daily ledger
+                  </p>
+                  <h3 className="mt-1 text-2xl font-black">{party.name}</h3>
+                  <p className="mt-1 text-sm text-[#cdbfae]">
                     Opening balance: {formatBDT(party.openingBalance)}
                   </p>
                 </div>
-                <span
-                  className={`rounded-full px-3 py-1 text-xs font-black ring-1 ${party.ledger.locked ? "bg-slate-700 text-slate-200 ring-slate-600" : "bg-cyan-400/15 text-cyan-200 ring-cyan-300/20"}`}
-                >
+
+                <span className="rounded-full border border-[#403729] bg-[#211b15] px-3 py-1 text-xs font-black">
                   {party.ledger.locked ? "LOCKED" : "DRAFT"}
                 </span>
               </div>
@@ -789,29 +981,27 @@ function LedgerView({
                 />
               </div>
 
-              <div className="mt-6 rounded-3xl bg-slate-50 p-4 ring-1 ring-slate-100">
-                <div className="mb-4 flex items-center justify-between gap-4">
+              <div className="mt-6 rounded-3xl border border-[#eadcc8] bg-[#f8efdf] p-5">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div>
-                    <p className="text-sm font-bold text-slate-500">
+                    <p className="text-sm font-black text-[#756b5c]">
                       Closing Balance
                     </p>
                     <strong
-                      className={
-                        party.calc.closingBalance >= 0
-                          ? "text-2xl font-black text-emerald-600"
-                          : "text-2xl font-black text-rose-600"
-                      }
+                      className={`mt-1 block text-3xl font-black ${status.text}`}
                     >
                       {formatBDT(party.calc.closingBalance)}
                     </strong>
                   </div>
+
                   <span
-                    className={`rounded-full px-3 py-1 text-xs font-black ring-1 ${status.tone}`}
+                    className={`w-fit rounded-full border px-3 py-1 text-xs font-black ${status.badge}`}
                   >
                     {status.label}
                   </span>
                 </div>
-                <div className="grid gap-3 sm:grid-cols-3">
+
+                <div className="mt-5 grid gap-3 sm:grid-cols-3">
                   <MiniCalc
                     label="SR Profit"
                     value={formatBDT(party.calc.srProfit)}
@@ -823,7 +1013,7 @@ function LedgerView({
                   <MiniCalc
                     label="Total Profit"
                     value={formatBDT(party.calc.totalProfit)}
-                    highlight
+                    dark
                   />
                 </div>
               </div>
@@ -831,7 +1021,7 @@ function LedgerView({
               <button
                 disabled={disabled}
                 onClick={() => closeDay(party.id)}
-                className="mt-5 w-full rounded-2xl bg-slate-950 px-5 py-4 text-sm font-black text-white shadow-xl shadow-slate-900/20 transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-500 disabled:shadow-none"
+                className="mt-5 w-full rounded-2xl bg-[#17130f] px-5 py-4 text-sm font-black text-[#fff7e8] transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:bg-[#d7c8b5] disabled:text-[#756b5c]"
               >
                 {party.ledger.locked
                   ? "Saved and Locked"
@@ -847,7 +1037,7 @@ function LedgerView({
   );
 }
 
-function PersonalBalance({
+function PersonalPage({
   isAdmin,
   balance,
   entries,
@@ -865,32 +1055,32 @@ function PersonalBalance({
   addPersonalEntry: (event: React.FormEvent<HTMLFormElement>) => void;
 }) {
   return (
-    <div className="grid gap-6 xl:grid-cols-[0.8fr_1.2fr]">
-      <div className="rounded-[2rem] bg-gradient-to-br from-emerald-500 to-teal-600 p-7 text-white shadow-xl shadow-emerald-500/20">
-        <p className="text-sm font-bold text-emerald-50">
-          Current Personal Balance
+    <div className="grid gap-6 xl:grid-cols-[0.75fr_1.25fr]">
+      <div className="rounded-[2rem] bg-[#17130f] p-7 text-[#fff7e8] shadow-xl shadow-black/10">
+        <p className="text-xs font-black uppercase tracking-[0.2em] text-[#d6a84f]">
+          Personal cash
         </p>
         <h3 className="mt-4 text-4xl font-black tracking-tight">
           {formatBDT(balance)}
         </h3>
-        <p className="mt-4 max-w-sm text-sm leading-6 text-emerald-50/90">
-          Owner personal expenses such as home rent, school fee, and personal
-          cash movement.
+        <p className="mt-5 text-sm leading-7 text-[#cdbfae]">
+          This section tracks only owner personal expenses such as home rent,
+          school fee, and personal deposits.
         </p>
       </div>
 
-      <section className="rounded-[2rem] border border-white bg-white/90 p-6 shadow-xl shadow-slate-200/80">
+      <section className="rounded-[2rem] border border-[#e1d2bd] bg-[#fffaf0] p-6 shadow-xl shadow-[#d8c9b4]/40">
         <div className="mb-6">
-          <h3 className="text-xl font-black">Expense Tracker</h3>
-          <p className="mt-1 text-sm text-slate-500">
-            Personal-only history, separated from party ledgers.
+          <p className="text-xs font-black uppercase tracking-[0.2em] text-[#9c6f22]">
+            Personal tracker
           </p>
+          <h3 className="mt-1 text-2xl font-black">Expense History</h3>
         </div>
 
         {isAdmin && (
           <form
             onSubmit={addPersonalEntry}
-            className="mb-6 grid gap-3 xl:grid-cols-[1fr_0.7fr_1fr_auto]"
+            className="mb-6 grid gap-3 xl:grid-cols-[1fr_0.65fr_1fr_auto]"
           >
             <input
               value={newPersonal.title}
@@ -898,7 +1088,7 @@ function PersonalBalance({
                 setNewPersonal({ ...newPersonal, title: event.target.value })
               }
               placeholder="Title"
-              className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none ring-blue-500/10 transition focus:border-blue-500 focus:ring-4"
+              className="rounded-2xl border border-[#e1d2bd] bg-[#fffaf0] px-4 py-3 text-sm font-semibold outline-none focus:border-[#9c6f22]"
             />
             <input
               type="number"
@@ -906,8 +1096,8 @@ function PersonalBalance({
               onChange={(event) =>
                 setNewPersonal({ ...newPersonal, amount: event.target.value })
               }
-              placeholder="Amount (+/-)"
-              className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none ring-blue-500/10 transition focus:border-blue-500 focus:ring-4"
+              placeholder="Amount"
+              className="rounded-2xl border border-[#e1d2bd] bg-[#fffaf0] px-4 py-3 text-sm font-semibold outline-none focus:border-[#9c6f22]"
             />
             <input
               value={newPersonal.note}
@@ -915,9 +1105,9 @@ function PersonalBalance({
                 setNewPersonal({ ...newPersonal, note: event.target.value })
               }
               placeholder="Note"
-              className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none ring-blue-500/10 transition focus:border-blue-500 focus:ring-4"
+              className="rounded-2xl border border-[#e1d2bd] bg-[#fffaf0] px-4 py-3 text-sm font-semibold outline-none focus:border-[#9c6f22]"
             />
-            <button className="rounded-2xl bg-slate-950 px-5 py-3 text-sm font-black text-white">
+            <button className="rounded-2xl bg-[#17130f] px-5 py-3 text-sm font-black text-[#fff7e8]">
               Add
             </button>
           </form>
@@ -927,17 +1117,18 @@ function PersonalBalance({
           {entries.map((entry) => (
             <div
               key={entry.id}
-              className="flex flex-col gap-3 rounded-3xl border border-slate-100 bg-slate-50 p-4 sm:flex-row sm:items-center sm:justify-between"
+              className="flex flex-col gap-3 rounded-3xl border border-[#eadcc8] bg-[#f8efdf] p-4 sm:flex-row sm:items-center sm:justify-between"
             >
               <div>
-                <strong className="text-slate-900">{entry.title}</strong>
-                <p className="mt-1 text-sm text-slate-500">
-                  {entry.date} · {entry.note || "No note"}
+                <strong>{entry.title}</strong>
+                <p className="mt-1 text-sm text-[#756b5c]">
+                  {entry.date} · {entry.note}
                 </p>
               </div>
+
               <strong
                 className={
-                  entry.amount >= 0 ? "text-emerald-600" : "text-rose-600"
+                  entry.amount >= 0 ? "text-emerald-700" : "text-rose-700"
                 }
               >
                 {formatBDT(entry.amount)}
@@ -950,7 +1141,7 @@ function PersonalBalance({
   );
 }
 
-function Reports({ totals }: { totals: DashboardTotals }) {
+function ReportsPage({ totals }: { totals: DashboardTotals }) {
   return (
     <div className="grid gap-6 xl:grid-cols-2">
       <ReportCard title="Daily Summary">
@@ -996,31 +1187,31 @@ function Reports({ totals }: { totals: DashboardTotals }) {
       <ReportCard title="Ledger History Preview">
         <div className="overflow-x-auto">
           <table className="w-full min-w-[620px] text-left text-sm">
-            <thead className="text-xs uppercase tracking-wide text-slate-400">
-              <tr>
-                <th className="border-b border-slate-100 py-3">Date</th>
-                <th className="border-b border-slate-100 py-3">Party</th>
-                <th className="border-b border-slate-100 py-3">Credit</th>
-                <th className="border-b border-slate-100 py-3">Debit</th>
-                <th className="border-b border-slate-100 py-3">Closing</th>
+            <thead>
+              <tr className="text-xs uppercase tracking-[0.18em] text-[#9c6f22]">
+                <th className="border-b border-[#e1d2bd] py-3">Date</th>
+                <th className="border-b border-[#e1d2bd] py-3">Party</th>
+                <th className="border-b border-[#e1d2bd] py-3">Credit</th>
+                <th className="border-b border-[#e1d2bd] py-3">Debit</th>
+                <th className="border-b border-[#e1d2bd] py-3">Closing</th>
               </tr>
             </thead>
             <tbody>
               {totals.rows.map((party) => (
                 <tr key={party.id}>
-                  <td className="border-b border-slate-100 py-3 text-slate-500">
+                  <td className="border-b border-[#eadcc8] py-3 text-[#756b5c]">
                     {party.ledger.date}
                   </td>
-                  <td className="border-b border-slate-100 py-3 font-bold">
+                  <td className="border-b border-[#eadcc8] py-3 font-black">
                     {party.name}
                   </td>
-                  <td className="border-b border-slate-100 py-3">
+                  <td className="border-b border-[#eadcc8] py-3">
                     {formatBDT(party.ledger.credit)}
                   </td>
-                  <td className="border-b border-slate-100 py-3">
+                  <td className="border-b border-[#eadcc8] py-3">
                     {formatBDT(party.ledger.debit)}
                   </td>
-                  <td className="border-b border-slate-100 py-3 font-black">
+                  <td className="border-b border-[#eadcc8] py-3 font-black">
                     {formatBDT(party.calc.closingBalance)}
                   </td>
                 </tr>
@@ -1033,100 +1224,60 @@ function Reports({ totals }: { totals: DashboardTotals }) {
   );
 }
 
-function RoleButton({
-  active,
-  onClick,
-  children,
-}: {
-  active: boolean;
-  onClick: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className={`rounded-xl px-4 py-3 text-sm font-black transition ${active ? "bg-white text-slate-950 shadow" : "text-slate-300 hover:bg-white/10 hover:text-white"}`}
-    >
-      {children}
-    </button>
-  );
-}
-
 function NavButton({
   active,
   onClick,
-  icon,
+  code,
   label,
 }: {
   active: boolean;
   onClick: () => void;
-  icon: string;
+  code: string;
   label: string;
 }) {
   return (
     <button
       onClick={onClick}
-      className={`flex items-center gap-3 rounded-2xl px-4 py-3.5 text-left text-sm font-bold transition ${active ? "bg-white text-slate-950 shadow-xl" : "text-slate-300 hover:bg-white/10 hover:text-white"}`}
+      className={`flex items-center gap-4 rounded-2xl px-4 py-4 text-left transition ${
+        active
+          ? "bg-[#d6a84f] text-[#17130f]"
+          : "text-[#cdbfae] hover:bg-[#211b15] hover:text-[#fff7e8]"
+      }`}
     >
-      <span>{icon}</span>
-      <span>{label}</span>
+      <span className="text-xs font-black opacity-70">{code}</span>
+      <span className="font-black">{label}</span>
     </button>
   );
 }
 
 function MetricCard({
-  title,
+  label,
   value,
-  hint,
-  tone,
-  onClick,
+  helper,
+  variant,
 }: {
-  title: string;
+  label: string;
   value: string;
-  hint: string;
-  tone: "blue" | "green" | "orange" | "slate";
-  onClick?: () => void;
+  helper: string;
+  variant: "dark" | "paper" | "green" | "gold";
 }) {
-  const toneClass = {
-    blue: "bg-gradient-to-br from-blue-600 to-cyan-500 text-white shadow-blue-500/20",
-    green:
-      "bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-emerald-500/20",
-    orange:
-      "bg-gradient-to-br from-orange-500 to-amber-500 text-white shadow-orange-500/20",
-    slate: "bg-white text-slate-950 shadow-slate-200/80 border border-white",
-  }[tone];
+  const classes = {
+    dark: "bg-[#17130f] text-[#fff7e8]",
+    paper: "bg-[#fffaf0] text-[#17130f] border border-[#e1d2bd]",
+    green: "bg-[#173f35] text-[#f2fff8]",
+    gold: "bg-[#d6a84f] text-[#17130f]",
+  };
 
   return (
-    <button
-      onClick={onClick}
-      className={`min-h-[154px] rounded-[2rem] p-6 text-left shadow-xl transition hover:-translate-y-1 ${toneClass}`}
+    <div
+      className={`min-h-[160px] rounded-[2rem] p-6 shadow-xl shadow-[#d8c9b4]/40 ${classes[variant]}`}
     >
-      <div className="flex h-full flex-col justify-between gap-5">
-        <p
-          className={
-            tone === "slate"
-              ? "text-sm font-bold text-slate-500"
-              : "text-sm font-bold text-white/80"
-          }
-        >
-          {title}
-        </p>
-        <div>
-          <strong className="block text-2xl font-black tracking-tight sm:text-3xl">
-            {value}
-          </strong>
-          <span
-            className={
-              tone === "slate"
-                ? "mt-2 block text-sm text-slate-500"
-                : "mt-2 block text-sm text-white/75"
-            }
-          >
-            {hint}
-          </span>
-        </div>
-      </div>
-    </button>
+      <p className="text-sm font-black opacity-75">{label}</p>
+      <strong className="mt-8 block text-2xl font-black tracking-tight sm:text-3xl">
+        {value}
+      </strong>
+      <p className="mt-2 text-sm opacity-70">{helper}</p>
+    </div>
   );
 }
 
@@ -1140,9 +1291,9 @@ function SummaryLine({
   strong?: boolean;
 }) {
   return (
-    <div className="flex items-center justify-between gap-4 border-b border-white/10 pb-3 last:border-0 last:pb-0">
-      <span className="text-sm text-slate-400">{label}</span>
-      <strong className={strong ? "text-lg text-emerald-300" : "text-white"}>
+    <div className="flex items-center justify-between gap-4 border-b border-[#403729] pb-3 last:border-0 last:pb-0">
+      <span className="text-sm text-[#cdbfae]">{label}</span>
+      <strong className={strong ? "text-lg text-[#d6a84f]" : ""}>
         {value}
       </strong>
     </div>
@@ -1161,47 +1312,20 @@ function InputField({
   onChange: (value: string) => void;
 }) {
   return (
-    <label className="grid gap-2 text-sm font-black text-slate-700">
+    <label className="grid gap-2 text-sm font-black text-[#3a3127]">
       {label}
       <input
         type="number"
         value={value}
         disabled={disabled}
         onChange={(event) => onChange(event.target.value)}
-        className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-900 outline-none ring-blue-500/10 transition placeholder:text-slate-300 focus:border-blue-500 focus:ring-4 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
+        className="rounded-2xl border border-[#e1d2bd] bg-[#fffaf0] px-4 py-3 text-sm font-semibold text-[#17130f] outline-none transition focus:border-[#9c6f22] disabled:cursor-not-allowed disabled:bg-[#eee2cf] disabled:text-[#8a7d6b]"
       />
     </label>
   );
 }
 
-function MiniCalc({
-  label,
-  value,
-  highlight = false,
-}: {
-  label: string;
-  value: string;
-  highlight?: boolean;
-}) {
-  return (
-    <div
-      className={`rounded-2xl p-4 ${highlight ? "bg-slate-950 text-white" : "bg-white ring-1 ring-slate-100"}`}
-    >
-      <span
-        className={
-          highlight
-            ? "text-xs font-bold text-slate-300"
-            : "text-xs font-bold text-slate-500"
-        }
-      >
-        {label}
-      </span>
-      <strong className="mt-1 block text-sm font-black">{value}</strong>
-    </div>
-  );
-}
-
-function ModalField({
+function FormField({
   label,
   value,
   onChange,
@@ -1215,16 +1339,35 @@ function ModalField({
   type?: string;
 }) {
   return (
-    <label className="grid gap-2 text-sm font-black text-slate-700">
+    <label className="grid gap-2 text-sm font-black text-[#3a3127]">
       {label}
       <input
         type={type}
         value={value}
         onChange={(event) => onChange(event.target.value)}
         placeholder={placeholder}
-        className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none ring-blue-500/10 transition focus:border-blue-500 focus:ring-4"
+        className="rounded-2xl border border-[#e1d2bd] bg-[#fffaf0] px-4 py-3 text-sm font-semibold outline-none transition placeholder:text-[#a89c8a] focus:border-[#9c6f22]"
       />
     </label>
+  );
+}
+
+function MiniCalc({
+  label,
+  value,
+  dark = false,
+}: {
+  label: string;
+  value: string;
+  dark?: boolean;
+}) {
+  return (
+    <div
+      className={`rounded-2xl p-4 ${dark ? "bg-[#17130f] text-[#fff7e8]" : "bg-[#fffaf0]"}`}
+    >
+      <span className="text-xs font-black opacity-70">{label}</span>
+      <strong className="mt-1 block text-sm font-black">{value}</strong>
+    </div>
   );
 }
 
@@ -1233,11 +1376,11 @@ function ReportCard({
   children,
 }: {
   title: string;
-  children: React.ReactNode;
+  children: ReactNode;
 }) {
   return (
-    <section className="rounded-[2rem] border border-white bg-white/90 p-6 shadow-xl shadow-slate-200/80 backdrop-blur">
-      <h3 className="mb-4 text-xl font-black">{title}</h3>
+    <section className="rounded-[2rem] border border-[#e1d2bd] bg-[#fffaf0] p-6 shadow-xl shadow-[#d8c9b4]/40">
+      <h3 className="mb-5 text-2xl font-black">{title}</h3>
       {children}
     </section>
   );
@@ -1253,23 +1396,31 @@ function ReportLine({
   strong?: boolean;
 }) {
   return (
-    <div className="flex items-center justify-between gap-4 border-b border-slate-100 py-4 last:border-0">
-      <span className={strong ? "font-black text-slate-950" : "text-slate-600"}>
+    <div className="flex items-center justify-between gap-4 border-b border-[#eadcc8] py-4 last:border-0">
+      <span className={strong ? "font-black" : "text-[#756b5c]"}>{label}</span>
+      <strong className={strong ? "text-lg" : ""}>{value}</strong>
+    </div>
+  );
+}
+
+function LoginStat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-3xl border border-[#403729] bg-[#17130f]/70 p-4">
+      <p className="text-xs uppercase tracking-[0.18em] text-[#b8ab99]">
         {label}
-      </span>
-      <strong className={strong ? "text-lg text-slate-950" : "text-slate-900"}>
-        {value}
-      </strong>
+      </p>
+      <p className="mt-2 font-black text-[#fff7e8]">{value}</p>
     </div>
   );
 }
 
 function pageTitle(view: View) {
   const titles: Record<View, string> = {
-    dashboard: "Dashboard",
-    ledger: "Daily Ledger Entry",
+    dashboard: "Control Dashboard",
+    ledger: "Daily Ledger Desk",
     personal: "Personal Balance",
-    reports: "Reports",
+    reports: "Reports Archive",
   };
+
   return titles[view];
 }
