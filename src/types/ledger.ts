@@ -1,6 +1,12 @@
 export type Role = "admin" | "employee";
 
-export type View = "dashboard" | "parties" | "ledger" | "personal" | "reports";
+export type View =
+  | "dashboard"
+  | "parties"
+  | "ledger"
+  | "adjustments"
+  | "personal"
+  | "reports";
 
 export type SessionUser = {
   name: string;
@@ -84,4 +90,47 @@ export type NewPersonalForm = {
   title: string;
   amount: string;
   note: string;
+};
+
+export type LedgerHistoryRecord = {
+  id: number;
+  date: string;
+  partyId: number;
+  partyName: string;
+  openingBalance: number;
+  debit: number;
+  credit: number;
+  srAmount: number;
+  marketRate: number;
+  givenRate: number;
+  commissionRate: number;
+  rdCharge: number;
+  others: number;
+  closingBalance: number;
+  srProfit: number;
+  commissionProfit: number;
+  totalProfit: number;
+  closedBy: string;
+  closedAt: string;
+};
+
+export type AdjustmentDirection = "increase" | "decrease";
+
+export type AdjustmentEntry = {
+  id: number;
+  date: string;
+  partyId: number;
+  partyName: string;
+  direction: AdjustmentDirection;
+  amount: number;
+  reason: string;
+  createdBy: string;
+  createdAt: string;
+};
+
+export type NewAdjustmentForm = {
+  partyId: string;
+  direction: AdjustmentDirection;
+  amount: string;
+  reason: string;
 };

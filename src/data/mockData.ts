@@ -1,4 +1,10 @@
-import type { DemoUser, Party, PersonalEntry } from "../types/ledger";
+import type {
+  AdjustmentEntry,
+  DemoUser,
+  LedgerHistoryRecord,
+  Party,
+  PersonalEntry,
+} from "../types/ledger";
 
 export const today = new Date().toISOString().slice(0, 10);
 
@@ -100,3 +106,7 @@ export const initialPersonalEntries: PersonalEntry[] = [
     note: "Personal expense",
   },
 ];
+
+export const initialLedgerHistoryRecords: LedgerHistoryRecord[] = [];
+
+export const initialAdjustmentEntries: AdjustmentEntry[] = [];

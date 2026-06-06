@@ -3,16 +3,26 @@ import type { FormEvent } from "react";
 import { BrandLogo } from "./components/BrandLogo";
 import { FormField } from "./components/FormField";
 import { NavButton } from "./components/Navigation";
-import { initialParties, initialPersonalEntries, today } from "./data/mockData";
+import {
+  initialAdjustmentEntries,
+  initialLedgerHistoryRecords,
+  initialParties,
+  initialPersonalEntries,
+  today,
+} from "./data/mockData";
+import { AdjustmentPage } from "./features/adjustments/AdjustmentPage";
 import { LoginScreen } from "./features/auth/LoginScreen";
 import { DashboardPage } from "./features/dashboard/DashboardPage";
 import { LedgerPage } from "./features/ledger/LedgerPage";
+import { PartyManagementPage } from "./features/parties/PartyManagementPage";
 import { PersonalPage } from "./features/personal/PersonalPage";
 import { ReportsPage } from "./features/reports/ReportsPage";
-import { PartyManagementPage } from "./features/parties/PartyManagementPage";
 import type {
+  AdjustmentEntry,
   DashboardTotals,
+  LedgerHistoryRecord,
   LedgerNumericField,
+  NewAdjustmentForm,
   NewPartyForm,
   NewPersonalForm,
   Party,
@@ -25,20 +35,40 @@ import { calculateLedger, safeNumber } from "./utils/calculations";
 export default function App() {
   const [sessionUser, setSessionUser] = useState<SessionUser | null>(null);
   const [view, setView] = useState<View>("dashboard");
+
   const [parties, setParties] = useState<Party[]>(initialParties);
+
   const [personalEntries, setPersonalEntries] = useState<PersonalEntry[]>(
     initialPersonalEntries,
   );
+
+  const [ledgerHistory, setLedgerHistory] = useState<LedgerHistoryRecord[]>(
+    initialLedgerHistoryRecords,
+  );
+
+  const [adjustmentEntries, setAdjustmentEntries] = useState<AdjustmentEntry[]>(
+    initialAdjustmentEntries,
+  );
+
   const [showAddParty, setShowAddParty] = useState(false);
+
   const [newParty, setNewParty] = useState<NewPartyForm>({
     name: "",
     phone: "",
     openingBalance: "",
   });
+
   const [newPersonal, setNewPersonal] = useState<NewPersonalForm>({
     title: "",
     amount: "",
     note: "",
+  });
+
+  const [newAdjustment, setNewAdjustment] = useState<NewAdjustmentForm>({
+    partyId: "",
+    direction: "increase",
+    amount: "",
+    reason: "",
   });
 
   const isAdmin = sessionUser?.role === "admin";
@@ -113,7 +143,37 @@ export default function App() {
   };
 
   const closeDay = (partyId: number) => {
-    if (!isAdmin) return;
+    if (!isAdmin || !sessionUser) return;
+
+    const targetParty = parties.find((party) => party.id === partyId);
+
+    if (!targetParty || targetParty.ledger.locked) return;
+
+    const calc = calculateLedger(targetParty);
+
+    const historyRecord: LedgerHistoryRecord = {
+      id: Date.now(),
+      date: targetParty.ledger.date,
+      partyId: targetParty.id,
+      partyName: targetParty.name,
+      openingBalance: targetParty.openingBalance,
+      debit: targetParty.ledger.debit,
+      credit: targetParty.ledger.credit,
+      srAmount: targetParty.ledger.srAmount,
+      marketRate: targetParty.ledger.marketRate,
+      givenRate: targetParty.ledger.givenRate,
+      commissionRate: targetParty.ledger.commissionRate,
+      rdCharge: targetParty.ledger.rdCharge,
+      others: targetParty.ledger.others,
+      closingBalance: calc.closingBalance,
+      srProfit: calc.srProfit,
+      commissionProfit: calc.commissionProfit,
+      totalProfit: calc.totalProfit,
+      closedBy: sessionUser.name,
+      closedAt: new Date().toISOString(),
+    };
+
+    setLedgerHistory((previous) => [historyRecord, ...previous]);
 
     setParties((previous) =>
       previous.map((party) =>
@@ -132,6 +192,7 @@ export default function App() {
 
   const addParty = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+
     if (!isAdmin || !newParty.name.trim()) return;
 
     const nextParty: Party = {
@@ -155,7 +216,13 @@ export default function App() {
     };
 
     setParties((previous) => [...previous, nextParty]);
-    setNewParty({ name: "", phone: "", openingBalance: "" });
+
+    setNewParty({
+      name: "",
+      phone: "",
+      openingBalance: "",
+    });
+
     setShowAddParty(false);
   };
 
@@ -193,6 +260,7 @@ export default function App() {
 
   const addPersonalEntry = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+
     if (!isAdmin || !newPersonal.title.trim()) return;
 
     setPersonalEntries((previous) => [
@@ -206,7 +274,68 @@ export default function App() {
       ...previous,
     ]);
 
-    setNewPersonal({ title: "", amount: "", note: "" });
+    setNewPersonal({
+      title: "",
+      amount: "",
+      note: "",
+    });
+  };
+
+  const addAdjustment = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    if (
+      !isAdmin ||
+      !sessionUser ||
+      !newAdjustment.partyId ||
+      !newAdjustment.reason.trim()
+    ) {
+      return;
+    }
+
+    const partyId = Number(newAdjustment.partyId);
+    const targetParty = parties.find((party) => party.id === partyId);
+
+    if (!targetParty) return;
+
+    const rawAmount = Math.abs(safeNumber(newAdjustment.amount));
+
+    if (rawAmount <= 0) return;
+
+    const signedAmount =
+      newAdjustment.direction === "increase" ? rawAmount : -rawAmount;
+
+    const nextAdjustment: AdjustmentEntry = {
+      id: Date.now(),
+      date: today,
+      partyId: targetParty.id,
+      partyName: targetParty.name,
+      direction: newAdjustment.direction,
+      amount: signedAmount,
+      reason: newAdjustment.reason.trim(),
+      createdBy: sessionUser.name,
+      createdAt: new Date().toISOString(),
+    };
+
+    setAdjustmentEntries((previous) => [nextAdjustment, ...previous]);
+
+    setParties((previous) =>
+      previous.map((party) =>
+        party.id === partyId
+          ? {
+              ...party,
+              openingBalance: safeNumber(party.openingBalance) + signedAmount,
+            }
+          : party,
+      ),
+    );
+
+    setNewAdjustment({
+      partyId: "",
+      direction: "increase",
+      amount: "",
+      reason: "",
+    });
   };
 
   if (!sessionUser) {
@@ -221,6 +350,7 @@ export default function App() {
             <div className="rounded-[2rem] border border-[#403729] bg-[#211b15] p-5">
               <div className="flex items-center gap-4">
                 <BrandLogo compact />
+
                 <div>
                   <h1 className="text-lg font-black leading-tight tracking-tight">
                     Accounts and Ledger System
@@ -262,15 +392,21 @@ export default function App() {
                 label="Daily Ledger Desk"
               />
               <NavButton
+                active={view === "adjustments"}
+                onClick={() => setView("adjustments")}
+                code="04"
+                label="Adjustments"
+              />
+              <NavButton
                 active={view === "personal"}
                 onClick={() => setView("personal")}
-                code="04"
+                code="05"
                 label="Personal Balance"
               />
               <NavButton
                 active={view === "reports"}
                 onClick={() => setView("reports")}
-                code="05"
+                code="06"
                 label="Reports Archive"
               />
             </nav>
@@ -286,6 +422,7 @@ export default function App() {
                   ? "You can create parties, update ledgers, and close daily records."
                   : "You can view summaries and reports only. Editing is locked."}
               </p>
+
               <button
                 onClick={() => {
                   setSessionUser(null);
@@ -365,6 +502,17 @@ export default function App() {
               />
             )}
 
+            {view === "adjustments" && (
+              <AdjustmentPage
+                parties={parties}
+                adjustments={adjustmentEntries}
+                isAdmin={isAdmin}
+                newAdjustment={newAdjustment}
+                setNewAdjustment={setNewAdjustment}
+                addAdjustment={addAdjustment}
+              />
+            )}
+
             {view === "personal" && (
               <PersonalPage
                 isAdmin={isAdmin}
@@ -376,7 +524,13 @@ export default function App() {
               />
             )}
 
-            {view === "reports" && <ReportsPage totals={totals} />}
+            {view === "reports" && (
+              <ReportsPage
+                totals={totals}
+                ledgerHistory={ledgerHistory}
+                adjustmentEntries={adjustmentEntries}
+              />
+            )}
           </div>
         </section>
       </div>
@@ -414,12 +568,14 @@ export default function App() {
                 onChange={(value) => setNewParty({ ...newParty, name: value })}
                 placeholder="Example: Party D"
               />
+
               <FormField
                 label="Phone / Note"
                 value={newParty.phone}
                 onChange={(value) => setNewParty({ ...newParty, phone: value })}
                 placeholder="Optional"
               />
+
               <FormField
                 label="Manual Opening Balance"
                 type="number"
@@ -449,6 +605,7 @@ function pageTitle(view: View) {
     dashboard: "Control Dashboard",
     parties: "Party Management",
     ledger: "Daily Ledger Desk",
+    adjustments: "Adjustment Entries",
     personal: "Personal Balance",
     reports: "Reports Archive",
   };
