@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
 import { BrandLogo } from "./components/BrandLogo";
 import { FormField } from "./components/FormField";
@@ -32,9 +32,48 @@ import type {
 } from "./types/ledger";
 import { calculateLedger, safeNumber } from "./utils/calculations";
 
+const STORAGE_KEYS = {
+  sessionUser: "ledger-system-session-user",
+  activeView: "ledger-system-active-view",
+};
+
+const validViews: View[] = [
+  "dashboard",
+  "parties",
+  "ledger",
+  "adjustments",
+  "personal",
+  "reports",
+];
+
+function getStoredSessionUser(): SessionUser | null {
+  try {
+    const storedUser = localStorage.getItem(STORAGE_KEYS.sessionUser);
+
+    if (!storedUser) return null;
+
+    return JSON.parse(storedUser) as SessionUser;
+  } catch {
+    return null;
+  }
+}
+
+function getStoredView(): View {
+  const storedView = localStorage.getItem(STORAGE_KEYS.activeView);
+
+  if (storedView && validViews.includes(storedView as View)) {
+    return storedView as View;
+  }
+
+  return "dashboard";
+}
+
 export default function App() {
-  const [sessionUser, setSessionUser] = useState<SessionUser | null>(null);
-  const [view, setView] = useState<View>("dashboard");
+  const [sessionUser, setSessionUser] = useState<SessionUser | null>(() =>
+    getStoredSessionUser(),
+  );
+
+  const [view, setView] = useState<View>(() => getStoredView());
 
   const [parties, setParties] = useState<Party[]>(initialParties);
 
@@ -72,6 +111,29 @@ export default function App() {
   });
 
   const isAdmin = sessionUser?.role === "admin";
+
+  useEffect(() => {
+    if (sessionUser) {
+      localStorage.setItem(
+        STORAGE_KEYS.sessionUser,
+        JSON.stringify(sessionUser),
+      );
+    } else {
+      localStorage.removeItem(STORAGE_KEYS.sessionUser);
+    }
+  }, [sessionUser]);
+
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEYS.activeView, view);
+  }, [view]);
+
+  const handleLogout = () => {
+    localStorage.removeItem(STORAGE_KEYS.sessionUser);
+    localStorage.removeItem(STORAGE_KEYS.activeView);
+
+    setSessionUser(null);
+    setView("dashboard");
+  };
 
   const totals = useMemo<DashboardTotals>(() => {
     const rows = parties
@@ -424,10 +486,7 @@ export default function App() {
               </p>
 
               <button
-                onClick={() => {
-                  setSessionUser(null);
-                  setView("dashboard");
-                }}
+                onClick={handleLogout}
                 className="mt-5 w-full rounded-2xl border border-[#403729] px-4 py-3 text-sm font-black text-[#f8efe0] transition hover:bg-[#2b241b]"
               >
                 Logout
@@ -466,10 +525,7 @@ export default function App() {
                 )}
 
                 <button
-                  onClick={() => {
-                    setSessionUser(null);
-                    setView("dashboard");
-                  }}
+                  onClick={handleLogout}
                   className="rounded-2xl border border-[#d8c9b4] bg-[#fffaf0] px-4 py-3 text-sm font-black text-[#17130f] xl:hidden"
                 >
                   Logout
