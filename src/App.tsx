@@ -20,6 +20,7 @@ import { ReportsPage } from "./features/reports/ReportsPage";
 import type {
   AdjustmentEntry,
   DashboardTotals,
+  Ledger,
   LedgerHistoryRecord,
   LedgerNumericField,
   NewAdjustmentForm,
@@ -35,6 +36,7 @@ import { calculateLedger, safeNumber } from "./utils/calculations";
 const STORAGE_KEYS = {
   sessionUser: "ledger-system-session-user",
   activeView: "ledger-system-active-view",
+  businessDate: "ledger-system-business-date",
 };
 
 const validViews: View[] = [
@@ -68,12 +70,41 @@ function getStoredView(): View {
   return "dashboard";
 }
 
+function getStoredBusinessDate() {
+  return localStorage.getItem(STORAGE_KEYS.businessDate) || today;
+}
+
+function getNextDate(date: string) {
+  const nextDate = new Date(`${date}T00:00:00`);
+  nextDate.setDate(nextDate.getDate() + 1);
+
+  return nextDate.toISOString().slice(0, 10);
+}
+
+function createBlankLedger(date: string): Ledger {
+  return {
+    date,
+    debit: 0,
+    credit: 0,
+    srAmount: 0,
+    marketRate: 0,
+    givenRate: 0,
+    commissionRate: 0,
+    rdCharge: 0,
+    others: 0,
+    locked: false,
+  };
+}
+
 export default function App() {
   const [sessionUser, setSessionUser] = useState<SessionUser | null>(() =>
     getStoredSessionUser(),
   );
 
   const [view, setView] = useState<View>(() => getStoredView());
+  const [businessDate, setBusinessDate] = useState<string>(() =>
+    getStoredBusinessDate(),
+  );
 
   const [parties, setParties] = useState<Party[]>(initialParties);
 
@@ -126,6 +157,10 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem(STORAGE_KEYS.activeView, view);
   }, [view]);
+
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEYS.businessDate, businessDate);
+  }, [businessDate]);
 
   const handleLogout = () => {
     localStorage.removeItem(STORAGE_KEYS.sessionUser);
@@ -182,6 +217,9 @@ export default function App() {
     };
   }, [parties, personalEntries]);
 
+  const canStartNextDay =
+    totals.rows.length > 0 && totals.rows.every((party) => party.ledger.locked);
+
   const updateLedger = (
     partyId: number,
     field: LedgerNumericField,
@@ -215,7 +253,7 @@ export default function App() {
 
     const historyRecord: LedgerHistoryRecord = {
       id: Date.now(),
-      date: targetParty.ledger.date,
+      date: businessDate,
       partyId: targetParty.id,
       partyName: targetParty.name,
       openingBalance: targetParty.openingBalance,
@@ -252,6 +290,29 @@ export default function App() {
     );
   };
 
+  const startNextBusinessDay = () => {
+    if (!isAdmin || !canStartNextDay) return;
+
+    const nextDate = getNextDate(businessDate);
+
+    setParties((previous) =>
+      previous.map((party) => {
+        if (!party.active) return party;
+
+        const calc = calculateLedger(party);
+
+        return {
+          ...party,
+          openingBalance: calc.closingBalance,
+          ledger: createBlankLedger(nextDate),
+        };
+      }),
+    );
+
+    setBusinessDate(nextDate);
+    setView("ledger");
+  };
+
   const addParty = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
@@ -264,7 +325,7 @@ export default function App() {
       openingBalance: safeNumber(newParty.openingBalance),
       active: true,
       ledger: {
-        date: today,
+        date: businessDate,
         debit: 0,
         credit: 0,
         srAmount: 0,
@@ -329,7 +390,7 @@ export default function App() {
       {
         id: Date.now(),
         title: newPersonal.title.trim(),
-        date: today,
+        date: businessDate,
         amount: safeNumber(newPersonal.amount),
         note: newPersonal.note.trim(),
       },
@@ -369,7 +430,7 @@ export default function App() {
 
     const nextAdjustment: AdjustmentEntry = {
       id: Date.now(),
-      date: today,
+      date: businessDate,
       partyId: targetParty.id,
       partyName: targetParty.name,
       direction: newAdjustment.direction,
@@ -500,7 +561,7 @@ export default function App() {
             <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
               <div>
                 <p className="text-xs font-black uppercase tracking-[0.22em] text-[#9c6f22]">
-                  Business Date · {today}
+                  Business Date · {businessDate}
                 </p>
                 <h2 className="mt-1 text-3xl font-black tracking-tight sm:text-4xl">
                   {pageTitle(view)}
@@ -553,8 +614,11 @@ export default function App() {
               <LedgerPage
                 rows={totals.rows}
                 isAdmin={isAdmin}
+                businessDate={businessDate}
+                canStartNextDay={canStartNextDay}
                 updateLedger={updateLedger}
                 closeDay={closeDay}
+                startNextBusinessDay={startNextBusinessDay}
               />
             )}
 
