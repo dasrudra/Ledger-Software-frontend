@@ -1,3 +1,4 @@
+import { useMemo, useState } from "react";
 import { ReportCard, ReportLine } from "../../components/Cards";
 import type {
   AdjustmentEntry,
@@ -15,9 +16,43 @@ export function ReportsPage({
   ledgerHistory: LedgerHistoryRecord[];
   adjustmentEntries: AdjustmentEntry[];
 }) {
+  const historyDates = useMemo(() => {
+    return Array.from(new Set(ledgerHistory.map((record) => record.date))).sort(
+      (a, b) => b.localeCompare(a),
+    );
+  }, [ledgerHistory]);
+
+  const [selectedDate, setSelectedDate] = useState("");
+  const activeSelectedDate = selectedDate || historyDates[0] || "";
+
+  const filteredHistory = useMemo(() => {
+    if (!activeSelectedDate) return [];
+    return ledgerHistory.filter((record) => record.date === activeSelectedDate);
+  }, [ledgerHistory, activeSelectedDate]);
+
+  const selectedDateTotals = useMemo(() => {
+    return filteredHistory.reduce(
+      (summary, record) => {
+        summary.opening += record.openingBalance;
+        summary.credit += record.credit;
+        summary.debit += record.debit;
+        summary.closing += record.closingBalance;
+        summary.profit += record.totalProfit;
+        return summary;
+      },
+      {
+        opening: 0,
+        credit: 0,
+        debit: 0,
+        closing: 0,
+        profit: 0,
+      },
+    );
+  }, [filteredHistory]);
+
   return (
     <div className="grid gap-6 xl:grid-cols-2">
-      <ReportCard title="Daily Summary">
+      <ReportCard title="Current Daily Summary">
         <ReportLine
           label="Today's Credit"
           value={formatBDT(totals.todayCredit)}
@@ -31,13 +66,62 @@ export function ReportsPage({
           value={formatBDT(totals.todayProfit)}
         />
         <ReportLine
-          label="Total Balance"
+          label="Current Total Balance"
           value={formatBDT(totals.totalBalance)}
           strong
         />
       </ReportCard>
 
-      <ReportCard title="Party-wise Balance">
+      <ReportCard title="Previous Records Checker">
+        <div className="mb-5">
+          <label className="grid gap-2 text-sm font-black text-[#3a3127]">
+            Select Closed Ledger Date
+            <select
+              value={activeSelectedDate}
+              onChange={(event) => setSelectedDate(event.target.value)}
+              className="rounded-2xl border border-[#e1d2bd] bg-[#fffaf0] px-4 py-3 text-sm font-semibold outline-none focus:border-[#9c6f22]"
+            >
+              {historyDates.length === 0 && (
+                <option value="">No closed record yet</option>
+              )}
+
+              {historyDates.map((date) => (
+                <option key={date} value={date}>
+                  {date}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+
+        <ReportLine
+          label="Closed Party Records"
+          value={String(filteredHistory.length)}
+        />
+        <ReportLine
+          label="Total Opening Balance"
+          value={formatBDT(selectedDateTotals.opening)}
+        />
+        <ReportLine
+          label="Total Credit"
+          value={formatBDT(selectedDateTotals.credit)}
+        />
+        <ReportLine
+          label="Total Debit"
+          value={formatBDT(selectedDateTotals.debit)}
+        />
+        <ReportLine
+          label="Previous Day Closing Balance"
+          value={formatBDT(selectedDateTotals.closing)}
+          strong
+        />
+        <ReportLine
+          label="Previous Day Profit"
+          value={formatBDT(selectedDateTotals.profit)}
+        />
+      </ReportCard>
+
+      <ReportCard title="Current Party-wise Balance">
         {totals.rows.map((party) => (
           <ReportLine
             key={party.id}
@@ -47,7 +131,7 @@ export function ReportsPage({
         ))}
       </ReportCard>
 
-      <ReportCard title="Profit Report">
+      <ReportCard title="Current Profit Report">
         {totals.rows.map((party) => (
           <ReportLine
             key={party.id}
@@ -75,6 +159,11 @@ export function ReportsPage({
 
       <section className="xl:col-span-2">
         <ReportCard title="Ledger History">
+          <div className="mb-5 rounded-3xl border border-[#eadcc8] bg-[#f8efdf] px-5 py-4 text-sm font-bold text-[#756b5c]">
+            This table shows closed ledger records only. Draft ledgers are not
+            counted as previous records.
+          </div>
+
           <div className="overflow-x-auto">
             <table className="w-full min-w-[980px] text-left text-sm">
               <thead>
@@ -91,7 +180,7 @@ export function ReportsPage({
               </thead>
 
               <tbody>
-                {ledgerHistory.map((record) => (
+                {filteredHistory.map((record) => (
                   <tr key={record.id}>
                     <td className="border-b border-[#eadcc8] py-3 text-[#756b5c]">
                       {record.date}
@@ -120,7 +209,7 @@ export function ReportsPage({
                   </tr>
                 ))}
 
-                {ledgerHistory.length === 0 && (
+                {filteredHistory.length === 0 && (
                   <tr>
                     <td
                       colSpan={8}

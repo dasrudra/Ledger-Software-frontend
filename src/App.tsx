@@ -37,6 +37,10 @@ const STORAGE_KEYS = {
   sessionUser: "ledger-system-session-user",
   activeView: "ledger-system-active-view",
   businessDate: "ledger-system-business-date",
+  parties: "ledger-system-parties",
+  personalEntries: "ledger-system-personal-entries",
+  ledgerHistory: "ledger-system-ledger-history",
+  adjustmentEntries: "ledger-system-adjustment-entries",
 };
 
 const validViews: View[] = [
@@ -50,7 +54,7 @@ const validViews: View[] = [
 
 function getStoredSessionUser(): SessionUser | null {
   try {
-    const storedUser = localStorage.getItem(STORAGE_KEYS.sessionUser);
+    const storedUser = sessionStorage.getItem(STORAGE_KEYS.sessionUser);
 
     if (!storedUser) return null;
 
@@ -61,13 +65,25 @@ function getStoredSessionUser(): SessionUser | null {
 }
 
 function getStoredView(): View {
-  const storedView = localStorage.getItem(STORAGE_KEYS.activeView);
+  const storedView = sessionStorage.getItem(STORAGE_KEYS.activeView);
 
   if (storedView && validViews.includes(storedView as View)) {
     return storedView as View;
   }
 
   return "dashboard";
+}
+
+function getStoredData<T>(key: string, fallback: T): T {
+  try {
+    const storedValue = localStorage.getItem(key);
+
+    if (!storedValue) return fallback;
+
+    return JSON.parse(storedValue) as T;
+  } catch {
+    return fallback;
+  }
 }
 
 function getStoredBusinessDate() {
@@ -106,18 +122,22 @@ export default function App() {
     getStoredBusinessDate(),
   );
 
-  const [parties, setParties] = useState<Party[]>(initialParties);
+  const [parties, setParties] = useState<Party[]>(() =>
+    getStoredData(STORAGE_KEYS.parties, initialParties),
+  );
 
-  const [personalEntries, setPersonalEntries] = useState<PersonalEntry[]>(
-    initialPersonalEntries,
+  const [personalEntries, setPersonalEntries] = useState<PersonalEntry[]>(() =>
+    getStoredData(STORAGE_KEYS.personalEntries, initialPersonalEntries),
   );
 
   const [ledgerHistory, setLedgerHistory] = useState<LedgerHistoryRecord[]>(
-    initialLedgerHistoryRecords,
+    () =>
+      getStoredData(STORAGE_KEYS.ledgerHistory, initialLedgerHistoryRecords),
   );
 
   const [adjustmentEntries, setAdjustmentEntries] = useState<AdjustmentEntry[]>(
-    initialAdjustmentEntries,
+    () =>
+      getStoredData(STORAGE_KEYS.adjustmentEntries, initialAdjustmentEntries),
   );
 
   const [showAddParty, setShowAddParty] = useState(false);
@@ -145,24 +165,52 @@ export default function App() {
 
   useEffect(() => {
     if (sessionUser) {
-      localStorage.setItem(
+      sessionStorage.setItem(
         STORAGE_KEYS.sessionUser,
         JSON.stringify(sessionUser),
       );
     } else {
-      localStorage.removeItem(STORAGE_KEYS.sessionUser);
+      sessionStorage.removeItem(STORAGE_KEYS.sessionUser);
     }
   }, [sessionUser]);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.activeView, view);
+    sessionStorage.setItem(STORAGE_KEYS.activeView, view);
   }, [view]);
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEYS.businessDate, businessDate);
   }, [businessDate]);
 
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEYS.parties, JSON.stringify(parties));
+  }, [parties]);
+
+  useEffect(() => {
+    localStorage.setItem(
+      STORAGE_KEYS.personalEntries,
+      JSON.stringify(personalEntries),
+    );
+  }, [personalEntries]);
+
+  useEffect(() => {
+    localStorage.setItem(
+      STORAGE_KEYS.ledgerHistory,
+      JSON.stringify(ledgerHistory),
+    );
+  }, [ledgerHistory]);
+
+  useEffect(() => {
+    localStorage.setItem(
+      STORAGE_KEYS.adjustmentEntries,
+      JSON.stringify(adjustmentEntries),
+    );
+  }, [adjustmentEntries]);
+
   const handleLogout = () => {
+    sessionStorage.removeItem(STORAGE_KEYS.sessionUser);
+    sessionStorage.removeItem(STORAGE_KEYS.activeView);
+
     localStorage.removeItem(STORAGE_KEYS.sessionUser);
     localStorage.removeItem(STORAGE_KEYS.activeView);
 
@@ -468,8 +516,8 @@ export default function App() {
   return (
     <main className="min-h-screen bg-[#f4efe6] text-[#17130f]">
       <div className="flex min-h-screen">
-        <aside className="hidden w-[310px] shrink-0 border-r border-[#2b241b] bg-[#17130f] text-[#f8efe0] xl:flex xl:flex-col">
-          <div className="p-7">
+        <aside className="hidden w-[255px] shrink-0 border-r border-[#2b241b] bg-[#17130f] text-[#f8efe0] lg:flex lg:flex-col">
+          <div className="p-4">
             <div className="rounded-[2rem] border border-[#403729] bg-[#211b15] p-5">
               <div className="flex items-center gap-4">
                 <BrandLogo compact />
@@ -530,12 +578,12 @@ export default function App() {
                 active={view === "reports"}
                 onClick={() => setView("reports")}
                 code="06"
-                label="Reports Archive"
+                label="History & Reports"
               />
             </nav>
           </div>
 
-          <div className="mt-auto p-7">
+          <div className="mt-auto p-4">
             <div className="rounded-[2rem] border border-[#403729] bg-[#211b15] p-5">
               <p className="text-sm font-black text-[#f8efe0]">
                 {isAdmin ? "Admin privileges" : "Employee view"}
@@ -557,13 +605,13 @@ export default function App() {
         </aside>
 
         <section className="flex min-w-0 flex-1 flex-col">
-          <header className="sticky top-0 z-30 border-b border-[#ded3c1] bg-[#f4efe6]/85 px-4 py-4 backdrop-blur-xl sm:px-6 lg:px-10">
+          <header className="sticky top-0 z-30 border-b border-[#ded3c1] bg-[#f4efe6]/90 px-4 py-3 backdrop-blur-xl sm:px-5 lg:px-6">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
               <div>
                 <p className="text-xs font-black uppercase tracking-[0.22em] text-[#9c6f22]">
                   Business Date · {businessDate}
                 </p>
-                <h2 className="mt-1 text-3xl font-black tracking-tight sm:text-4xl">
+                <h2 className="mt-1 text-2xl font-black tracking-tight sm:text-3xl">
                   {pageTitle(view)}
                 </h2>
               </div>
@@ -595,7 +643,7 @@ export default function App() {
             </div>
           </header>
 
-          <div className="p-4 sm:p-6 lg:p-10">
+          <div className="p-3 sm:p-4 lg:p-5">
             {view === "dashboard" && (
               <DashboardPage totals={totals} setView={setView} />
             )}
@@ -727,7 +775,7 @@ function pageTitle(view: View) {
     ledger: "Daily Ledger Desk",
     adjustments: "Adjustment Entries",
     personal: "Personal Balance",
-    reports: "Reports Archive",
+    reports: "History & Reports",
   };
 
   return titles[view];

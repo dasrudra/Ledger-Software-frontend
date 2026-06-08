@@ -20,13 +20,13 @@ export function MetricCard({
 
   return (
     <div
-      className={`min-h-[160px] rounded-[2rem] p-6 shadow-xl shadow-[#d8c9b4]/40 ${classes[variant]}`}
+      className={`min-h-[118px] rounded-[1.5rem] p-4 shadow-lg shadow-[#d8c9b4]/35 ${classes[variant]}`}
     >
-      <p className="text-sm font-black opacity-75">{label}</p>
-      <strong className="mt-8 block text-2xl font-black tracking-tight sm:text-3xl">
+      <p className="text-[0.82rem] font-black opacity-75">{label}</p>
+      <strong className="mt-5 block text-xl font-black tracking-tight sm:text-2xl">
         {value}
       </strong>
-      <p className="mt-2 text-sm opacity-70">{helper}</p>
+      <p className="mt-1.5 text-[0.82rem] opacity-70">{helper}</p>
     </div>
   );
 }
@@ -41,9 +41,9 @@ export function SummaryLine({
   strong?: boolean;
 }) {
   return (
-    <div className="flex items-center justify-between gap-4 border-b border-[#403729] pb-3 last:border-0 last:pb-0">
-      <span className="text-sm text-[#cdbfae]">{label}</span>
-      <strong className={strong ? "text-lg text-[#d6a84f]" : ""}>
+    <div className="flex items-center justify-between gap-4 border-b border-[#403729] pb-2.5 last:border-0 last:pb-0">
+      <span className="text-[0.86rem] text-[#cdbfae]">{label}</span>
+      <strong className={strong ? "text-base text-[#d6a84f]" : ""}>
         {value}
       </strong>
     </div>
@@ -61,12 +61,12 @@ export function MiniCalc({
 }) {
   return (
     <div
-      className={`rounded-2xl p-4 ${
+      className={`rounded-2xl p-3 ${
         dark ? "bg-[#17130f] text-[#fff7e8]" : "bg-[#fffaf0]"
       }`}
     >
-      <span className="text-xs font-black opacity-70">{label}</span>
-      <strong className="mt-1 block text-sm font-black">{value}</strong>
+      <span className="text-[0.74rem] font-black opacity-70">{label}</span>
+      <strong className="mt-1 block text-[0.9rem] font-black">{value}</strong>
     </div>
   );
 }
@@ -79,8 +79,8 @@ export function ReportCard({
   children: ReactNode;
 }) {
   return (
-    <section className="rounded-[2rem] border border-[#e1d2bd] bg-[#fffaf0] p-6 shadow-xl shadow-[#d8c9b4]/40">
-      <h3 className="mb-5 text-2xl font-black">{title}</h3>
+    <section className="rounded-[1.5rem] border border-[#e1d2bd] bg-[#fffaf0] p-4 shadow-lg shadow-[#d8c9b4]/35">
+      <h3 className="mb-4 text-xl font-black">{title}</h3>
       {children}
     </section>
   );
@@ -96,20 +96,20 @@ export function ReportLine({
   strong?: boolean;
 }) {
   return (
-    <div className="flex items-center justify-between gap-4 border-b border-[#eadcc8] py-4 last:border-0">
+    <div className="flex items-center justify-between gap-4 border-b border-[#eadcc8] py-3 last:border-0">
       <span className={strong ? "font-black" : "text-[#756b5c]"}>{label}</span>
-      <strong className={strong ? "text-lg" : ""}>{value}</strong>
+      <strong className={strong ? "text-base" : ""}>{value}</strong>
     </div>
   );
 }
 
 export function LoginStat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-3xl border border-[#403729] bg-[#17130f]/70 p-4">
-      <p className="text-xs uppercase tracking-[0.18em] text-[#b8ab99]">
+    <div className="rounded-2xl border border-[#403729] bg-[#17130f]/70 p-3">
+      <p className="text-[0.7rem] uppercase tracking-[0.18em] text-[#b8ab99]">
         {label}
       </p>
-      <p className="mt-2 font-black text-[#fff7e8]">{value}</p>
+      <p className="mt-1.5 font-black text-[#fff7e8]">{value}</p>
     </div>
   );
 }
