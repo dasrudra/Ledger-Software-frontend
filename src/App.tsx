@@ -514,9 +514,9 @@ export default function App() {
   }
 
   return (
-    <main className="min-h-screen bg-[#f4efe6] text-[#17130f]">
+    <main className="min-h-screen bg-transparent text-[#17130f]">
       <div className="flex min-h-screen">
-        <aside className="hidden w-[255px] shrink-0 border-r border-[#2b241b] bg-[#17130f] text-[#f8efe0] lg:flex lg:flex-col">
+        <aside className="hidden w-[260px] shrink-0 border-r border-[#2b241b] bg-[#17130f] text-[#f8efe0] shadow-2xl shadow-black/25 lg:flex lg:flex-col">
           <div className="p-4">
             <div className="rounded-[2rem] border border-[#403729] bg-[#211b15] p-5">
               <div className="flex items-center gap-4">
@@ -605,7 +605,7 @@ export default function App() {
         </aside>
 
         <section className="flex min-w-0 flex-1 flex-col">
-          <header className="sticky top-0 z-30 border-b border-[#ded3c1] bg-[#f4efe6]/90 px-4 py-3 backdrop-blur-xl sm:px-5 lg:px-6">
+          <header className="sticky top-0 z-30 border-b border-[#ded3c1] bg-[#f8f0e2]/80 px-4 py-3 shadow-sm shadow-[#d8c9b4]/30 backdrop-blur-xl sm:px-5 lg:px-6">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
               <div>
                 <p className="text-xs font-black uppercase tracking-[0.22em] text-[#9c6f22]">

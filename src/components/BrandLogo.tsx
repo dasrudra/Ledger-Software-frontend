@@ -1,48 +1,53 @@
 export function BrandLogo({ compact = false }: { compact?: boolean }) {
   return (
     <div
-      className={`relative grid place-items-center ${
-        compact ? "h-14 w-14 rounded-2xl" : "h-20 w-20 rounded-[1.7rem]"
-      } bg-[#d6a84f] text-[#17130f] shadow-lg shadow-black/20`}
+      className={`relative grid shrink-0 place-items-center overflow-hidden ${
+        compact ? "h-11 w-11 rounded-2xl" : "h-16 w-16 rounded-[1.4rem]"
+      } bg-gradient-to-br from-[#f6d58a] via-[#d6a84f] to-[#9c6f22] text-[#17130f] shadow-lg shadow-black/20 ring-1 ring-white/15`}
       aria-label="Accounts and Ledger System logo"
     >
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_25%_20%,rgba(255,255,255,0.65),transparent_34%)]" />
+      <div className="absolute -bottom-5 -right-5 h-12 w-12 rounded-full bg-[#17130f]/15" />
+
       <svg
         viewBox="0 0 64 64"
-        className={compact ? "h-9 w-9" : "h-12 w-12"}
+        className={`relative z-10 ${compact ? "h-8 w-8" : "h-11 w-11"}`}
         fill="none"
         xmlns="http://www.w3.org/2000/svg"
       >
         <rect
-          x="13"
+          x="14"
           y="10"
-          width="38"
-          height="44"
-          rx="7"
-          stroke="currentColor"
-          strokeWidth="4"
+          width="32"
+          height="40"
+          rx="8"
+          fill="#17130f"
+          opacity="0.95"
         />
         <path
-          d="M23 22H41"
-          stroke="currentColor"
-          strokeWidth="4"
+          d="M22 22H38"
+          stroke="#f6d58a"
+          strokeWidth="3.5"
           strokeLinecap="round"
         />
         <path
-          d="M23 33H41"
-          stroke="currentColor"
-          strokeWidth="4"
+          d="M22 31H38"
+          stroke="#f6d58a"
+          strokeWidth="3.5"
           strokeLinecap="round"
+          opacity="0.85"
         />
         <path
-          d="M23 44H33"
-          stroke="currentColor"
-          strokeWidth="4"
+          d="M22 40H31"
+          stroke="#f6d58a"
+          strokeWidth="3.5"
           strokeLinecap="round"
+          opacity="0.85"
         />
-        <circle cx="46" cy="46" r="8" fill="#17130f" />
+        <circle cx="45" cy="45" r="10" fill="#f6d58a" />
         <path
-          d="M42.5 46.2L45 48.7L50.2 43.3"
-          stroke="#d6a84f"
+          d="M41.2 45.2L44.1 48.1L49.6 42.4"
+          stroke="#17130f"
           strokeWidth="3"
           strokeLinecap="round"
           strokeLinejoin="round"

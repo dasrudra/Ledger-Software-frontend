@@ -20,13 +20,16 @@ export function MetricCard({
 
   return (
     <div
-      className={`min-h-[118px] rounded-[1.5rem] p-4 shadow-lg shadow-[#d8c9b4]/35 ${classes[variant]}`}
+      className={`group relative min-h-[118px] overflow-hidden rounded-[1.5rem] p-4 shadow-lg shadow-[#d8c9b4]/35 transition-all duration-200 hover:-translate-y-1 hover:shadow-2xl hover:shadow-[#c7ad83]/40 ${classes[variant]}`}
     >
-      <p className="text-[0.82rem] font-black opacity-75">{label}</p>
-      <strong className="mt-5 block text-xl font-black tracking-tight sm:text-2xl">
+      <div className="absolute -right-8 -top-8 h-24 w-24 rounded-full bg-white/10 transition duration-300 group-hover:scale-125" />
+      <div className="absolute bottom-0 left-0 h-1 w-0 bg-[#d6a84f] transition-all duration-300 group-hover:w-full" />
+
+      <p className="relative text-[0.82rem] font-black opacity-75">{label}</p>
+      <strong className="relative mt-5 block text-xl font-black tracking-tight sm:text-2xl">
         {value}
       </strong>
-      <p className="mt-1.5 text-[0.82rem] opacity-70">{helper}</p>
+      <p className="relative mt-1.5 text-[0.82rem] opacity-70">{helper}</p>
     </div>
   );
 }

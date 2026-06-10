@@ -45,7 +45,7 @@ export function DashboardPage({
       </section>
 
       <section className="grid gap-4 xl:grid-cols-[1.35fr_0.65fr]">
-        <div className="rounded-[2rem] border border-[#e1d2bd] bg-[#fffaf0] p-6 shadow-xl shadow-[#d8c9b4]/40">
+        <div className="rounded-[1.5rem] border border-[#e1d2bd] bg-[#fffaf0] p-6 shadow-xl shadow-[#d8c9b4]/40">
           <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <p className="text-xs font-black uppercase tracking-[0.2em] text-[#9c6f22]">
@@ -113,7 +113,7 @@ export function DashboardPage({
         </div>
 
         <div className="grid gap-6">
-          <div className="rounded-[2rem] bg-[#17130f] p-6 text-[#fff7e8] shadow-xl shadow-black/10">
+          <div className="rounded-[1.5rem] bg-[#17130f] p-6 text-[#fff7e8] shadow-xl shadow-black/10">
             <p className="text-xs font-black uppercase tracking-[0.2em] text-[#d6a84f]">
               Today
             </p>
@@ -140,7 +140,7 @@ export function DashboardPage({
             </div>
           </div>
 
-          <div className="rounded-[2rem] border border-[#e1d2bd] bg-[#fffaf0] p-6">
+          <div className="rounded-[1.5rem] border border-[#e1d2bd] bg-[#fffaf0] p-6">
             <p className="text-xs font-black uppercase tracking-[0.2em] text-[#9c6f22]">
               Audit rule
             </p>
